@@ -9,3 +9,6 @@ build:
 
 test:
 	$(GO) test -v $(PKG) -short
+
+fmt:
+	$(GO) mod tidy && find . -path vendor -prune -o -type f -iname '*.go' -exec go fmt {} \;
