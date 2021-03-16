@@ -1,0 +1,62 @@
+name: build
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    env:
+      GO111MODULE: on
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: setup-go 1.14
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.14
+      - name: Fmt
+        run: |
+          make fmt
+          files=$(git status -s)
+          [[ "$files" == "" ]] && exit 0 || exit 1
+
+  build:
+    name: build
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - linux
+          - darwin
+          - windows
+        arch:
+          - amd64
+          - arm
+        exclude:
+          - os: darwin
+            arch: arm
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: setup-go 1.14
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.14
+      - name: build
+        run: make
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+      - name: test
+        run: make test
