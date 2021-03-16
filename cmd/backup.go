@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 
 	"github.com/spf13/cobra"
-	"https://github.com/vesoft-inc/nebula-br/pkg/backup"
+	"github.com/vesoft-inc/nebula-br/pkg/backup"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )

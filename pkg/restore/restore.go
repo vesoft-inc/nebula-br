@@ -13,12 +13,12 @@ import (
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"github.com/scylladb/go-set/strset"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
+	"github.com/vesoft-inc/nebula-br/pkg/remote"
+	"github.com/vesoft-inc/nebula-br/pkg/storage"
 	"github.com/vesoft-inc/nebula-go/nebula"
 	"github.com/vesoft-inc/nebula-go/nebula/meta"
-	"https://github.com/vesoft-inc/nebula-br/pkg/config"
-	"https://github.com/vesoft-inc/nebula-br/pkg/metaclient"
-	"https://github.com/vesoft-inc/nebula-br/pkg/remote"
-	"https://github.com/vesoft-inc/nebula-br/pkg/storage"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )

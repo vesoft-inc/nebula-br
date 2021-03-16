@@ -1,6 +1,6 @@
 package cmd
 
-import "https://github.com/vesoft-inc/nebula-br/pkg/config"
+import "github.com/vesoft-inc/nebula-br/pkg/config"
 
 var (
 	backupConfig  config.BackupConfig

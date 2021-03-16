@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"https://github.com/vesoft-inc/nebula-br/pkg/cleanup"
+	"github.com/vesoft-inc/nebula-br/pkg/cleanup"
 	"go.uber.org/zap"
 )
 

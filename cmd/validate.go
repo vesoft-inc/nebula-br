@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"https://github.com/vesoft-inc/nebula-br/pkg/remote"
+	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"go.uber.org/zap"
 )
 
