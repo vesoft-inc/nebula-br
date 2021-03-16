@@ -3,8 +3,8 @@ package cleanup
 import (
 	"errors"
 
-	"https://github.com/vesoft-inc/nebula-br/pkg/config"
-	"https://github.com/vesoft-inc/nebula-br/pkg/metaclient"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-go/nebula/meta"
 	"go.uber.org/zap"
 )

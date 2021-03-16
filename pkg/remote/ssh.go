@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"https://github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"

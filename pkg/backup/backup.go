@@ -18,10 +18,10 @@ import (
 	"github.com/vesoft-inc/nebula-go/nebula"
 	"github.com/vesoft-inc/nebula-go/nebula/meta"
 
-	"https://github.com/vesoft-inc/nebula-br/pkg/config"
-	"https://github.com/vesoft-inc/nebula-br/pkg/metaclient"
-	"https://github.com/vesoft-inc/nebula-br/pkg/remote"
-	"https://github.com/vesoft-inc/nebula-br/pkg/storage"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
+	"github.com/vesoft-inc/nebula-br/pkg/remote"
+	"github.com/vesoft-inc/nebula-br/pkg/storage"
 )
 
 var defaultTimeout time.Duration = 120 * time.Second
