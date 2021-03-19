@@ -15,13 +15,12 @@ import (
 	"golang.org/x/net/context"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/vesoft-inc/nebula-go/nebula"
-	"github.com/vesoft-inc/nebula-go/nebula/meta"
-
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
+	"github.com/vesoft-inc/nebula-go/nebula"
+	"github.com/vesoft-inc/nebula-go/nebula/meta"
 )
 
 var defaultTimeout time.Duration = 120 * time.Second
@@ -46,9 +45,7 @@ func (e *BackupError) Error() string {
 
 type Backup struct {
 	config         config.BackupConfig
-	metaNodeMap    map[string]config.NodeInfo
-	storageNodeMap map[string]config.NodeInfo
-	metaLeader     config.NodeInfo
+	metaLeader     string
 	backendStorage storage.ExternalStorage
 	log            *zap.Logger
 	metaFileName   string
@@ -64,10 +61,9 @@ func NewBackupClient(cf config.BackupConfig, log *zap.Logger) *Backup {
 }
 
 func (b *Backup) dropBackup(name []byte) (*meta.ExecResp, error) {
-	addr := b.metaLeader.Addrs
 
 	client := metaclient.NewMetaClient(b.log)
-	err := client.Open(addr)
+	err := client.Open(b.metaLeader)
 	if err != nil {
 		return nil, err
 	}
@@ -89,13 +85,11 @@ func (b *Backup) dropBackup(name []byte) (*meta.ExecResp, error) {
 }
 
 func (b *Backup) createBackup() (*meta.CreateBackupResp, error) {
-	node := b.config.MetaNodes
-	addr := node[0].Addrs
-	b.metaLeader = node[0]
+	b.metaLeader = b.config.Meta
 
 	for {
 		client := metaclient.NewMetaClient(b.log)
-		err := client.Open(addr)
+		err := client.Open(b.metaLeader)
 		if err != nil {
 			return nil, err
 		}
@@ -128,8 +122,7 @@ func (b *Backup) createBackup() (*meta.CreateBackupResp, error) {
 		}
 
 		b.log.Info("leader changed", zap.String("leader", leader.String()))
-		addr = metaclient.HostaddrToString(leader)
-		b.metaLeader = b.metaNodeMap[addr]
+		b.metaLeader = metaclient.HostaddrToString(leader)
 	}
 }
 
@@ -161,36 +154,8 @@ func (b *Backup) writeMetadata(meta *meta.BackupMeta) error {
 	return nil
 }
 
-func (b *Backup) Init() {
-	metaNodeMap := make(map[string]config.NodeInfo)
-	for _, node := range b.config.MetaNodes {
-		metaNodeMap[node.Addrs] = node
-	}
-	b.metaNodeMap = metaNodeMap
-
-	storageNodeMap := make(map[string]config.NodeInfo)
-	for _, node := range b.config.StorageNodes {
-		storageNodeMap[node.Addrs] = node
-	}
-
-	b.storageNodeMap = storageNodeMap
-}
-
-func (b *Backup) check() error {
-	nodes := append(b.config.MetaNodes, b.config.StorageNodes...)
-	command := b.backendStorage.CheckCommand()
-	return remote.CheckCommand(command, nodes, b.log)
-}
-
 func (b *Backup) BackupCluster() error {
 	b.log.Info("start backup nebula cluster")
-	err := b.check()
-	if err != nil {
-		b.log.Error("check failed", zap.Error(err))
-		return err
-	}
-
-	b.Init()
 	resp, err := b.createBackup()
 	if err != nil {
 		b.log.Error("backup cluster failed", zap.Error(err))
@@ -210,8 +175,8 @@ func (b *Backup) uploadMeta(g *errgroup.Group, files []string) {
 
 	b.log.Info("will upload meta", zap.Int("sst file count", len(files)))
 	cmd := b.backendStorage.BackupMetaCommand(files)
-	b.log.Info("start upload meta", zap.String("addr", b.metaLeader.Addrs))
-	ipAddr := strings.Split(b.metaLeader.Addrs, ":")
+	b.log.Info("start upload meta", zap.String("addr", b.metaLeader))
+	ipAddr := strings.Split(b.metaLeader, ":")
 	func(addr string, user string, cmd string, log *zap.Logger) {
 		g.Go(func() error {
 			client, err := remote.NewClient(addr, user, log)
@@ -221,7 +186,7 @@ func (b *Backup) uploadMeta(g *errgroup.Group, files []string) {
 			defer client.Close()
 			return client.ExecCommandBySSH(cmd)
 		})
-	}(ipAddr[0], b.metaLeader.User, cmd, b.log)
+	}(ipAddr[0], b.config.User, cmd, b.log)
 }
 
 func (b *Backup) uploadStorage(g *errgroup.Group, dirs map[string][]spaceInfo) error {
@@ -236,7 +201,7 @@ func (b *Backup) uploadStorage(g *errgroup.Group, dirs map[string][]spaceInfo) e
 
 		ipAddrs := strings.Split(k, ":")
 		b.log.Info("uploadStorage idMap", zap.Int("idMap length", len(idMap)))
-		clients, err := remote.NewClientPool(ipAddrs[0], b.storageNodeMap[k].User, b.log, b.config.MaxSSHConnections)
+		clients, err := remote.NewClientPool(ipAddrs[0], b.config.User, b.log, b.config.MaxSSHConnections)
 		if err != nil {
 			b.log.Error("new clients failed", zap.Error(err))
 			return err
@@ -303,10 +268,6 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 	var metaFiles []string
 	for _, f := range meta.GetMetaFiles() {
 		fileName := string(f[:])
-		if !filepath.IsAbs(fileName) {
-			root := b.metaLeader.RootDir
-			fileName = filepath.Join(root, fileName)
-		}
 		metaFiles = append(metaFiles, string(fileName))
 	}
 	b.uploadMeta(g, metaFiles)
@@ -315,10 +276,6 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 	for k, v := range meta.GetBackupInfo() {
 		for _, f := range v.GetCpDirs() {
 			dir := string(f.CheckpointDir)
-			if !filepath.IsAbs(dir) {
-				root := b.storageNodeMap[metaclient.HostaddrToString(f.Host)].RootDir
-				dir = filepath.Join(root, dir)
-			}
 			cpDir := spaceInfo{k, dir}
 			storageMap[metaclient.HostaddrToString(f.Host)] = append(storageMap[metaclient.HostaddrToString(f.Host)], cpDir)
 		}

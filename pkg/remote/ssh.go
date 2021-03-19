@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"go.uber.org/zap"
@@ -40,13 +41,18 @@ func NewClient(addr string, user string, log *zap.Logger) (*Client, error) {
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 	}
 
-	client, err := ssh.Dial("tcp", net.JoinHostPort(addr, "22"), config)
-	if err != nil {
-		log.Error("unable to connect host", zap.Error(err), zap.String("host", addr), zap.String("user", user))
-		return nil, err
-	}
+	retry := 1
+	for retry < 3 {
+		client, err := ssh.Dial("tcp", net.JoinHostPort(addr, "22"), config)
+		if err != nil {
+			log.Error("unable to connect host, will retry", zap.Error(err), zap.String("host", addr), zap.String("user", user))
+			time.Sleep(time.Second * 3)
+			continue
+		}
+		return &Client{client, addr, user, log}, nil
 
-	return &Client{client, addr, user, log}, nil
+	}
+	return nil, err
 }
 
 func NewClientPool(addr string, user string, log *zap.Logger, count int) ([]*Client, error) {

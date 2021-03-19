@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
+	//"github.com/vesoft-inc/nebula-go/nebula/meta"
 	"github.com/vesoft-inc/nebula-go/nebula/meta"
 	"go.uber.org/zap"
 )
@@ -39,6 +40,34 @@ func (m *MetaClient) DropBackup(req *meta.DropSnapshotReq) (*meta.ExecResp, erro
 		return nil, fmt.Errorf("client not open")
 	}
 	return m.client.DropSnapshot(req)
+}
+
+func (m *MetaClient) ListCluster(req *meta.ListClusterInfoReq) (*meta.ListClusterInfoResp, error) {
+	if m.client == nil {
+		return nil, fmt.Errorf("client not open")
+	}
+	return m.client.ListCluster(req)
+}
+
+func (m *MetaClient) ListMetaDir(req *meta.GetMetaDirInfoReq) (*meta.GetMetaDirInfoResp, error) {
+	if m.client == nil {
+		return nil, fmt.Errorf("client not open")
+	}
+	return m.client.GetMetaDirInfo(req)
+}
+
+func (m *MetaClient) DropSpace(req *meta.DropSpaceReq) (*meta.ExecResp, error) {
+	if m.client == nil {
+		return nil, fmt.Errorf("client not open")
+	}
+	return m.client.DropSpace(req)
+}
+
+func (m *MetaClient) GetSpaceInfo(req *meta.GetSpaceReq) (*meta.GetSpaceResp, error) {
+	if m.client == nil {
+		return nil, fmt.Errorf("client not open")
+	}
+	return m.client.GetSpace(req)
 }
 
 func (m *MetaClient) Open(addr string) error {
