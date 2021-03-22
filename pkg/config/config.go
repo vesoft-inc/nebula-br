@@ -55,3 +55,5 @@ type CleanupConfig struct {
 	BackupName string
 	MetaServer []string
 }
+
+var LogPath string

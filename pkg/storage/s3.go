@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bufio"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -88,4 +90,19 @@ func (s S3BackedStore) URI() string {
 
 func (s S3BackedStore) CheckCommand() string {
 	return "aws " + s.args + " s3 ls " + s.url
+}
+
+func (s S3BackedStore) ListBackupCommand() ([]string, error) {
+	output, err := exec.Command("aws", "s3", "ls", s.url).Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	sc := bufio.NewScanner(strings.NewReader(string(output)))
+	for sc.Scan() {
+		w := strings.Fields(sc.Text())
+		dirs = append(dirs, strings.TrimRight(w[1], "/"))
+	}
+	return dirs, nil
 }

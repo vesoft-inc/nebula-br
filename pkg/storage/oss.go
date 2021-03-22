@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bufio"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -90,4 +92,27 @@ func (s OSSBackedStore) URI() string {
 
 func (s OSSBackedStore) CheckCommand() string {
 	return "ossutil ls " + s.url
+}
+
+func (s OSSBackedStore) ListBackupCommand() ([]string, error) {
+	output, err := exec.Command("ossutil", "ls", "-d", s.url).Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	sc := bufio.NewScanner(strings.NewReader(string(output)))
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "oss://") {
+			break
+		}
+		index := strings.Index(line, s.url)
+		if index == -1 {
+			return nil, fmt.Errorf("Wrong oss file name %s", line)
+		}
+
+		dirs = append(dirs, strings.TrimRight(line[len(s.url):], "/"))
+	}
+	return dirs, nil
 }

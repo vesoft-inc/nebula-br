@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/log"
 	"github.com/vesoft-inc/nebula-br/pkg/restore"
-	"go.uber.org/zap"
 )
 
 func NewRestoreCMD() *cobra.Command {
@@ -33,8 +34,6 @@ func newFullRestoreCmd() *cobra.Command {
 		Use:   "full",
 		Short: "full restore Nebula Graph Database",
 		Args: func(cmd *cobra.Command, args []string) error {
-			logger, _ := zap.NewProduction()
-			defer logger.Sync() // flushes buffer, if any
 
 			if restoreConfig.MaxConcurrent <= 0 {
 				restoreConfig.MaxConcurrent = 5
@@ -45,12 +44,15 @@ func newFullRestoreCmd() *cobra.Command {
 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// nil mean backup all space
-			logger, _ := zap.NewProduction()
+			logger, err := log.NewLogger(config.LogPath)
+			if err != nil {
+				return err
+			}
 
 			defer logger.Sync() // flushes buffer, if any
 
-			r := restore.NewRestore(restoreConfig, logger)
-			err := r.RestoreCluster()
+			r := restore.NewRestore(restoreConfig, logger.Logger)
+			err = r.RestoreCluster()
 			if err != nil {
 				return err
 			}

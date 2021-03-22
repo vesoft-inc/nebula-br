@@ -119,3 +119,7 @@ func (s HDFSBackedStore) RestoreStoragePreCommand(dst string) string {
 func (s HDFSBackedStore) CheckCommand() string {
 	return "hadoop fs -ls " + s.url
 }
+
+func (s HDFSBackedStore) ListBackupCommand() ([]string, error) {
+	return nil, fmt.Errorf("not implement in hdfs")
+}

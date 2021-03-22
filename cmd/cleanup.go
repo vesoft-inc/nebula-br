@@ -3,7 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/vesoft-inc/nebula-br/pkg/cleanup"
-	"go.uber.org/zap"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/log"
 )
 
 func NewCleanupCmd() *cobra.Command {
@@ -12,10 +13,10 @@ func NewCleanupCmd() *cobra.Command {
 		Short:        "Clean up temporary files in backup",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger, _ := zap.NewProduction()
+			logger, _ := log.NewLogger(config.LogPath)
 
 			defer logger.Sync() // flushes buffer, if any
-			c := cleanup.NewCleanup(cleanupConfig, logger)
+			c := cleanup.NewCleanup(cleanupConfig, logger.Logger)
 
 			err := c.Run()
 

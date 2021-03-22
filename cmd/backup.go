@@ -3,7 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/vesoft-inc/nebula-br/pkg/backup"
-	"go.uber.org/zap"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/log"
 )
 
 func NewBackupCmd() *cobra.Command {
@@ -33,8 +34,6 @@ func newFullBackupCmd() *cobra.Command {
 		Use:   "full",
 		Short: "full backup Nebula Graph Database",
 		Args: func(cmd *cobra.Command, args []string) error {
-			logger, _ := zap.NewProduction()
-			defer logger.Sync() // flushes buffer, if any
 
 			if backupConfig.MaxSSHConnections <= 0 {
 				backupConfig.MaxSSHConnections = 5
@@ -47,12 +46,14 @@ func newFullBackupCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger, _ := zap.NewProduction()
-
+			logger, err := log.NewLogger(config.LogPath)
+			if err != nil {
+				return err
+			}
 			defer logger.Sync() // flushes buffer, if any
-			b := backup.NewBackupClient(backupConfig, logger)
+			b := backup.NewBackupClient(backupConfig, logger.Logger)
 
-			err := b.BackupCluster()
+			err = b.BackupCluster()
 			if err != nil {
 				return err
 			}

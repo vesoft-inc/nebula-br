@@ -19,6 +19,7 @@ type ExternalStorage interface {
 	RestoreMetaPreCommand(dst string) string
 	RestoreStoragePreCommand(dst string) string
 	CheckCommand() string
+	ListBackupCommand() ([]string, error)
 	URI() string
 }
 

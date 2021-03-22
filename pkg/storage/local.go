@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"io/ioutil"
 	"strings"
 
 	"go.uber.org/zap"
@@ -108,4 +109,17 @@ func (s LocalBackedStore) RestoreStoragePreCommand(dst string) string {
 
 func (s LocalBackedStore) CheckCommand() string {
 	return "ls " + s.dir
+}
+
+func (s LocalBackedStore) ListBackupCommand() ([]string, error) {
+	files, err := ioutil.ReadDir(s.dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var backupFiles []string
+	for _, f := range files {
+		backupFiles = append(backupFiles, f.Name())
+	}
+	return backupFiles, nil
 }
