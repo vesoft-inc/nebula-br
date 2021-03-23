@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
-	//"github.com/vesoft-inc/nebula-go/nebula/meta"
 	"github.com/vesoft-inc/nebula-go/nebula/meta"
 	"go.uber.org/zap"
 )
@@ -92,6 +91,7 @@ func (m *MetaClient) Open(addr string) error {
 	pf := thrift.NewBinaryProtocolFactoryDefault()
 	client := meta.NewMetaServiceClientFactory(transport, pf)
 	if err := client.Transport.Open(); err != nil {
+		m.log.Error("open meta failed", zap.Error(err), zap.String("addr", addr))
 		return err
 	}
 	m.client = client

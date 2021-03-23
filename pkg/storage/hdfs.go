@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"bufio"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"go.uber.org/zap"
@@ -121,5 +123,24 @@ func (s HDFSBackedStore) CheckCommand() string {
 }
 
 func (s HDFSBackedStore) ListBackupCommand() ([]string, error) {
-	return nil, fmt.Errorf("not implement in hdfs")
+	output, err := exec.Command("hadoop", "fs", "-ls", "-C", s.url).Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	sc := bufio.NewScanner(strings.NewReader(string(output)))
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "hdfs://") {
+			break
+		}
+		index := strings.Index(line, s.url)
+		if index == -1 {
+			return nil, fmt.Errorf("Wrong hdfs file name %s", line)
+		}
+		dirs = append(dirs, line[len(s.url):])
+	}
+
+	return dirs, nil
 }

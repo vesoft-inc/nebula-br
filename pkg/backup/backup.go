@@ -245,7 +245,7 @@ func (b *Backup) execPreCommand(backupName string) error {
 	if cmdStr == nil {
 		return nil
 	}
-
+	b.log.Info("exec pre command", zap.Strings("cmd", cmdStr))
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	err := cmd.Run()
 	if err != nil {
@@ -262,6 +262,7 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 
 	err := b.execPreCommand(string(meta.GetBackupName()[:]))
 	if err != nil {
+		b.log.Error("exec pre command failed", zap.Error(err))
 		return err
 	}
 

@@ -53,6 +53,7 @@ func (r *Show) readMetaFile(metaName string) ([]string, error) {
 	m := meta.NewBackupMeta()
 	err = m.Read(binaryIn)
 	if err != nil {
+		r.log.Error("read meta file failed", zap.Error(err))
 		return nil, err
 	}
 
@@ -103,6 +104,7 @@ func (s *Show) showMetaFiles() ([][]string, error) {
 func (s *Show) ShowInfo() error {
 	dirs, err := s.backend.ListBackupCommand()
 	if err != nil {
+		s.log.Error("list backup file failed", zap.Error(err))
 		return err
 	}
 
