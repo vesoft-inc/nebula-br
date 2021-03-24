@@ -23,7 +23,7 @@ func NewBackupCmd() *cobra.Command {
 	backupCmd.PersistentFlags().StringVar(&backupConfig.User, "user", "", "user for meta/storage")
 	backupCmd.PersistentFlags().IntVar(&backupConfig.MaxSSHConnections, "connection", 5, "max ssh connection")
 	backupCmd.PersistentFlags().IntVar(&backupConfig.MaxConcurrent, "concurrent", 5, "max concurrent(for aliyun OSS)")
-	backupCmd.PersistentFlags().StringVar(&backupConfig.CommandArgs, "", "", "backup storage utils(oss/hdfs/s3) args for backup")
+	backupCmd.PersistentFlags().StringVar(&backupConfig.CommandArgs, "extra_args", "", "backup storage utils(oss/hdfs/s3) args for backup")
 
 	backupCmd.MarkPersistentFlagRequired("meta")
 	backupCmd.MarkPersistentFlagRequired("storage")

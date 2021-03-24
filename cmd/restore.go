@@ -21,8 +21,8 @@ func NewRestoreCMD() *cobra.Command {
 	restoreCmd.PersistentFlags().StringVar(&restoreConfig.BackendUrl, "storage", "", "storage path")
 	restoreCmd.PersistentFlags().StringVar(&restoreConfig.User, "user", "", "user for meta and storage")
 	restoreCmd.PersistentFlags().StringVar(&restoreConfig.BackupName, "name", "", "backup name")
-	restoreCmd.PersistentFlags().IntVar(&restoreConfig.MaxConcurrent, "", 5, "max concurrent(for aliyun OSS)")
-	restoreCmd.PersistentFlags().StringVar(&restoreConfig.CommandArgs, "", "", "storage utils(oss/hdfs/s3) args for restore")
+	restoreCmd.PersistentFlags().IntVar(&restoreConfig.MaxConcurrent, "concurrent", 5, "max concurrent(for aliyun OSS)")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfig.CommandArgs, "extra_args", "", "storage utils(oss/hdfs/s3) args for restore")
 
 	restoreCmd.MarkPersistentFlagRequired("meta")
 	restoreCmd.MarkPersistentFlagRequired("storage")
