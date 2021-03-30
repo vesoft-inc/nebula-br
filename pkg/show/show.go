@@ -67,7 +67,7 @@ func (r *Show) readMetaFile(metaName string) ([]string, error) {
 
 	var info []string
 	info = append(info, string(m.BackupName))
-	info = append(info, time.Unix(0, m.CreateTime*int64(time.Millisecond)).UTC().String())
+	info = append(info, time.Unix(0, m.CreateTime*int64(time.Millisecond)).Format("2006-01-02 15:04:05"))
 	info = append(info, spaces)
 	info = append(info, strconv.FormatBool(m.Full))
 
