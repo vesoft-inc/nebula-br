@@ -3,7 +3,7 @@ module github.com/vesoft-inc/nebula-br
 go 1.14
 
 require (
-	github.com/facebook/fbthrift v0.0.0-20190922225929-2f9839604e25
+	github.com/facebook/fbthrift v0.31.1-0.20210223140454-614a73a42488
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/scylladb/go-set v1.0.2

@@ -73,7 +73,7 @@ func (m *MetaClient) Open(addr string) error {
 	m.log.Info("start open meta", zap.String("addr", addr))
 
 	if m.client != nil {
-		if err := m.client.Transport.Close(); err != nil {
+		if err := m.client.CC.Close(); err != nil {
 			m.log.Warn("close backup falied", zap.Error(err))
 		}
 	}
@@ -90,7 +90,7 @@ func (m *MetaClient) Open(addr string) error {
 
 	pf := thrift.NewBinaryProtocolFactoryDefault()
 	client := meta.NewMetaServiceClientFactory(transport, pf)
-	if err := client.Transport.Open(); err != nil {
+	if err := client.CC.Open(); err != nil {
 		m.log.Error("open meta failed", zap.Error(err), zap.String("addr", addr))
 		return err
 	}
@@ -100,7 +100,7 @@ func (m *MetaClient) Open(addr string) error {
 
 func (m *MetaClient) Close() error {
 	if m.client != nil {
-		if err := m.client.Transport.Close(); err != nil {
+		if err := m.client.CC.Close(); err != nil {
 			return err
 		}
 	}

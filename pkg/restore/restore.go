@@ -468,11 +468,11 @@ func (r *Restore) getMetaInfo(hosts []*nebula.HostAddr) ([]config.NodeInfo, erro
 		}
 		var datadir []string
 
-		for _, d := range resp.DataDir {
+		for _, d := range resp.Dir.Data {
 			datadir = append(datadir, string(d[0:]))
 		}
 		info = append(info, config.NodeInfo{Addrs: metaclient.HostaddrToString(v),
-			User: r.config.User, RootDir: string(resp.RootDir[0:]), DataDir: datadir})
+			User: r.config.User, RootDir: string(resp.Dir.Root[0:]), DataDir: datadir})
 	}
 	return info, nil
 }
@@ -481,12 +481,12 @@ func (r *Restore) setStorageInfo(resp *meta.ListClusterInfoResp) {
 	for _, v := range resp.StorageServers {
 		var datadir []string
 
-		for _, d := range v.DataDir {
+		for _, d := range v.Dir.Data {
 			datadir = append(datadir, string(d[0:]))
 		}
 
 		r.storageNodes = append(r.storageNodes, config.NodeInfo{Addrs: metaclient.HostaddrToString(v.Host),
-			User: r.config.User, RootDir: string(v.RootDir[0:]), DataDir: datadir})
+			User: r.config.User, RootDir: string(v.Dir.Root[0:]), DataDir: datadir})
 	}
 
 	sort.SliceStable(r.storageNodes, func(i, j int) bool {
