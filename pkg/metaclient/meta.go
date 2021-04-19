@@ -86,7 +86,8 @@ func (m *MetaClient) Open(addr string) error {
 		return err
 	}
 
-	transport := thrift.NewBufferedTransport(sock, 128<<10)
+	bufferedTranFactory := thrift.NewBufferedTransportFactory(128 << 10)
+	transport := thrift.NewFramedTransport(bufferedTranFactory.GetTransport(sock))
 
 	pf := thrift.NewBinaryProtocolFactoryDefault()
 	client := meta.NewMetaServiceClientFactory(transport, pf)
