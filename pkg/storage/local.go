@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"io/ioutil"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -47,11 +48,16 @@ func (s LocalBackedStore) BackupMetaCommand(src []string) string {
 	return s.copyCommand(src, metaDir)
 }
 
-func (s LocalBackedStore) BackupStorageCommand(src string, host string, spaceId string) string {
-	storageDir := s.dir + "/" + "storage/" + host + "/" + spaceId
-	data := src + "/data "
-	wal := src + "/wal "
-	return "mkdir -p " + storageDir + " && cp -rf " + s.args + " " + data + wal + storageDir
+func (s LocalBackedStore) BackupStorageCommand(src []string, host string, spaceId string) []string {
+	var cmd []string
+	for i, dir := range src {
+		storageDir := s.dir + "/" + "storage/" + host + "/" + "data" + strconv.Itoa(i) + "/" + spaceId
+		data := dir + "/data "
+		wal := dir + "/wal "
+		cmdStr := "mkdir -p " + storageDir + " && cp -rf " + s.args + " " + data + wal + storageDir
+		cmd = append(cmd, cmdStr)
+	}
+	return cmd
 }
 
 func (s LocalBackedStore) BackupMetaFileCommand(src string) []string {
@@ -87,14 +93,19 @@ func (s LocalBackedStore) RestoreMetaCommand(src []string, dst string) (string, 
 	return fmt.Sprintf("cp -rf %s %s %s", files, s.args, dst), sstFiles
 }
 
-func (s LocalBackedStore) RestoreStorageCommand(host string, spaceID []string, dst string) string {
-	storageDir := s.dir + "/storage/" + host + "/"
-	dirs := ""
-	for _, id := range spaceID {
-		dirs += storageDir + id + " "
+func (s LocalBackedStore) RestoreStorageCommand(host string, spaceID []string, dst []string) []string {
+	var cmd []string
+	for i, d := range dst {
+		storageDir := s.dir + "/storage/" + host + "/" + "data" + strconv.Itoa(i) + "/"
+		dirs := ""
+		for _, id := range spaceID {
+			dirs += storageDir + id + " "
+		}
+		cmdStr := fmt.Sprintf("cp -rf %s %s %s", dirs, s.args, d)
+		cmd = append(cmd, cmdStr)
 	}
 
-	return fmt.Sprintf("cp -rf %s %s %s", dirs, s.args, dst)
+	return cmd
 }
 
 func (s LocalBackedStore) RestoreMetaPreCommand(dst string) string {

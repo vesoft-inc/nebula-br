@@ -193,10 +193,10 @@ func (b *Backup) uploadStorage(g *errgroup.Group, dirs map[string][]spaceInfo) e
 	b.log.Info("uploadStorage", zap.Int("dirs length", len(dirs)))
 	for k, v := range dirs {
 		b.log.Info("start upload storage", zap.String("addr", k))
-		idMap := make(map[string]string)
+		idMap := make(map[string][]string)
 		for _, info := range v {
 			idStr := strconv.FormatInt(int64(info.spaceID), 10)
-			idMap[idStr] = info.checkpointDir
+			idMap[idStr] = append(idMap[idStr], info.checkpointDir)
 		}
 
 		ipAddrs := strings.Split(k, ":")
@@ -209,16 +209,18 @@ func (b *Backup) uploadStorage(g *errgroup.Group, dirs map[string][]spaceInfo) e
 		i := 0
 		//We need to limit the number of ssh connections per storage node
 		for id2, cp := range idMap {
-			cmd := b.backendStorage.BackupStorageCommand(cp, k, id2)
-			if i >= len(clients) {
-				i = 0
+			cmds := b.backendStorage.BackupStorageCommand(cp, k, id2)
+			for _, cmd := range cmds {
+				if i >= len(clients) {
+					i = 0
+				}
+				client := clients[i]
+				func(client *remote.Client, cmd string) {
+					g.Go(func() error {
+						return client.ExecCommandBySSH(cmd)
+					})
+				}(client, cmd)
 			}
-			client := clients[i]
-			func(client *remote.Client, cmd string) {
-				g.Go(func() error {
-					return client.ExecCommandBySSH(cmd)
-				})
-			}(client, cmd)
 			i++
 		}
 	}
@@ -275,10 +277,12 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 	//upload storage
 	storageMap := make(map[string][]spaceInfo)
 	for k, v := range meta.GetBackupInfo() {
-		for _, f := range v.GetCpDirs() {
-			dir := string(f.CheckpointDir)
-			cpDir := spaceInfo{k, dir}
-			storageMap[metaclient.HostaddrToString(f.Host)] = append(storageMap[metaclient.HostaddrToString(f.Host)], cpDir)
+		for _, i := range v.GetInfo() {
+			for _, f := range i.GetInfo() {
+				dir := string(f.Path)
+				cpDir := spaceInfo{k, dir}
+				storageMap[metaclient.HostaddrToString(i.Host)] = append(storageMap[metaclient.HostaddrToString(i.Host)], cpDir)
+			}
 		}
 	}
 	err = b.uploadStorage(g, storageMap)

@@ -10,12 +10,12 @@ import (
 type ExternalStorage interface {
 	SetBackupName(name string)
 	BackupPreCommand() []string
-	BackupStorageCommand(src string, host string, spaceID string) string
+	BackupStorageCommand(src []string, host string, spaceID string) []string
 	BackupMetaCommand(src []string) string
 	BackupMetaFileCommand(src string) []string
 	RestoreMetaFileCommand(file string, dst string) []string
 	RestoreMetaCommand(src []string, dst string) (string, []string)
-	RestoreStorageCommand(host string, spaceID []string, dst string) string
+	RestoreStorageCommand(host string, spaceID []string, dst []string) []string
 	RestoreMetaPreCommand(dst string) string
 	RestoreStoragePreCommand(dst string) string
 	CheckCommand() string

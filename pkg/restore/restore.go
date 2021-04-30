@@ -60,15 +60,24 @@ func NewRestore(config config.RestoreConfig, log *zap.Logger) *Restore {
 
 func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
 	s := strset.New()
+	maxInfoLen := 0
 	for _, v := range info {
-		for _, c := range v.CpDirs {
-			s.Add(metaclient.HostaddrToString(c.Host))
+		for _, i := range v.Info {
+			s.Add(metaclient.HostaddrToString(i.Host))
+			if len(i.Info) > maxInfoLen {
+				maxInfoLen = len(i.Info)
+			}
 		}
 	}
 
 	if s.Size() > len(r.storageNodes) {
 		return fmt.Errorf("The physical topology of storage must be consistent")
 	}
+
+	if maxInfoLen != len(r.storageNodes[0].DataDir) {
+		return fmt.Errorf("The number of data directories for storage must be the same")
+	}
+
 	return nil
 }
 
@@ -141,39 +150,43 @@ func (r *Restore) downloadStorage(g *errgroup.Group, info map[nebula.GraphSpaceI
 	idMap := make(map[string][]string)
 	var cpHosts []string
 	for gid, bInfo := range info {
-		for _, dir := range bInfo.CpDirs {
+		for _, i := range bInfo.Info {
 			idStr := strconv.FormatInt(int64(gid), 10)
-			if idMap[metaclient.HostaddrToString(dir.Host)] == nil {
-				cpHosts = append(cpHosts, metaclient.HostaddrToString(dir.Host))
+			if idMap[metaclient.HostaddrToString(i.Host)] == nil {
+				cpHosts = append(cpHosts, metaclient.HostaddrToString(i.Host))
 			}
-			idMap[metaclient.HostaddrToString(dir.Host)] = append(idMap[metaclient.HostaddrToString(dir.Host)], idStr)
+			idMap[metaclient.HostaddrToString(i.Host)] = append(idMap[metaclient.HostaddrToString(i.Host)], idStr)
 		}
 	}
 
 	sort.Strings(cpHosts)
-
-	i := 0
 	storageIPmap := make(map[string]string)
-	for _, ip := range cpHosts {
+	for i, ip := range cpHosts {
 		ids := idMap[ip]
 		sNode := r.storageNodes[i]
 		r.log.Info("download", zap.String("ip", ip), zap.String("storage", sNode.Addrs))
-		cmd := r.backend.RestoreStorageCommand(ip, ids, sNode.DataDir[0]+"/nebula")
+		var nebulaDirs []string
+		for _, d := range sNode.DataDir {
+			nebulaDirs = append(nebulaDirs, d+"/nebula")
+		}
+
+		cmds := r.backend.RestoreStorageCommand(ip, ids, nebulaDirs)
 		addr := strings.Split(sNode.Addrs, ":")
 		if ip != sNode.Addrs {
 			storageIPmap[ip] = sNode.Addrs
 		}
-		func(addr string, user string, cmd string, log *zap.Logger) {
-			g.Go(func() error {
-				client, err := remote.NewClient(addr, user, log)
-				if err != nil {
-					return err
-				}
-				defer client.Close()
-				return client.ExecCommandBySSH(cmd)
-			})
-		}(addr[0], sNode.User, cmd, r.log)
-		i++
+		for _, cmd := range cmds {
+			func(addr string, user string, cmd string, log *zap.Logger) {
+				g.Go(func() error {
+					client, err := remote.NewClient(addr, user, log)
+					if err != nil {
+						return err
+					}
+					defer client.Close()
+					return client.ExecCommandBySSH(cmd)
+				})
+			}(addr[0], sNode.User, cmd, r.log)
+		}
 	}
 	return storageIPmap
 }

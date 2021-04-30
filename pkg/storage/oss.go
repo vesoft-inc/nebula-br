@@ -35,9 +35,14 @@ func (s *OSSBackedStore) BackupPreCommand() []string {
 	return nil
 }
 
-func (s *OSSBackedStore) BackupStorageCommand(src string, host string, spaceID string) string {
-	storageDir := s.url + "/" + "storage/" + host + "/" + spaceID + "/"
-	return "ossutil cp -r " + src + " " + storageDir + " " + s.args + " -j " + s.maxConcurrent
+func (s *OSSBackedStore) BackupStorageCommand(src []string, host string, spaceID string) []string {
+	var cmd []string
+	for i, dir := range src {
+		storageDir := s.url + "/" + "storage/" + host + "/" + "data" + strconv.Itoa(i) + "/" + spaceID + "/"
+		cmdStr := "ossutil cp -r " + dir + " " + storageDir + " " + s.args + " -j " + s.maxConcurrent
+		cmd = append(cmd, cmdStr)
+	}
+	return cmd
 }
 
 func (s OSSBackedStore) BackupMetaCommand(src []string) string {
@@ -75,11 +80,17 @@ func (s OSSBackedStore) RestoreMetaCommand(src []string, dst string) (string, []
 	}
 	return fmt.Sprintf("ossutil cp -r %s %s -j %s %s", metaDir, dst, s.maxConcurrent, s.args), sstFiles
 }
-func (s OSSBackedStore) RestoreStorageCommand(host string, spaceID []string, dst string) string {
-	storageDir := s.url + "/storage/" + host + "/"
+func (s OSSBackedStore) RestoreStorageCommand(host string, spaceID []string, dst []string) []string {
+	var cmd []string
+	for i, d := range dst {
+		storageDir := s.url + "/storage/" + host + "/" + "data" + strconv.Itoa(i) + "/"
+		cmdStr := fmt.Sprintf("ossutil cp -r %s %s -j %s %s", storageDir, d, s.maxConcurrent, s.args)
+		cmd = append(cmd, cmdStr)
+	}
 
-	return fmt.Sprintf("ossutil cp -r %s %s -j %s %s", storageDir, dst, s.maxConcurrent, s.args)
+	return cmd
 }
+
 func (s OSSBackedStore) RestoreMetaPreCommand(dst string) string {
 	return "rm -rf " + dst + " && mkdir -p " + dst
 }
