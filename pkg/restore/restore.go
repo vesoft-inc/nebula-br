@@ -230,7 +230,7 @@ func sendRestoreMeta(addr string, files [][]byte, hostMap []*meta.HostPair, log 
 			continue
 		}
 
-		if resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 			log.Error("restore failed", zap.String("error code", resp.GetCode().String()), zap.String("addr", addr))
 			time.Sleep(time.Second * 2)
 			count--
@@ -431,12 +431,12 @@ func (r *Restore) listCluster() (*meta.ListClusterInfoResp, error) {
 			return nil, err
 		}
 
-		if resp.GetCode() != meta.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 			r.log.Error("list cluster failed", zap.String("error code", resp.GetCode().String()))
 			return nil, listClusterFailed
 		}
 
-		if resp.GetCode() == meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
 			return resp, nil
 		}
 
@@ -475,7 +475,7 @@ func (r *Restore) getMetaInfo(hosts []*nebula.HostAddr) ([]config.NodeInfo, erro
 			return nil, err
 		}
 
-		if resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 			r.log.Error("list cluster failed", zap.String("error code", resp.GetCode().String()))
 			return nil, listClusterFailed
 		}
@@ -529,17 +529,17 @@ func (r *Restore) checkSpace(m *meta.BackupMeta) error {
 				return err
 			}
 
-			if resp.GetCode() == meta.ErrorCode_E_NOT_FOUND {
+			if resp.GetCode() == nebula.ErrorCode_E_SPACE_NOT_FOUND {
 				reCreate = false
 				break
 			}
 
-			if resp.GetCode() != meta.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+			if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 				r.log.Error("get space failed", zap.String("error code", resp.GetCode().String()))
 				return getSpaceFailed
 			}
 
-			if resp.GetCode() == meta.ErrorCode_SUCCEEDED {
+			if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
 				if resp.Item.SpaceID != gid {
 					r.log.Error("space not matching", zap.String("spacename", string(info.Space.SpaceName[0:])),
 						zap.Int32("gid", int32(gid)), zap.Int32("gid in server", int32(resp.Item.SpaceID)))
@@ -587,12 +587,12 @@ func (r *Restore) dropSpace(m *meta.BackupMeta) error {
 				return err
 			}
 
-			if resp.GetCode() != meta.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+			if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 				r.log.Error("drop space failed", zap.String("error code", resp.GetCode().String()))
 				return dropSpaceFailed
 			}
 
-			if resp.GetCode() == meta.ErrorCode_SUCCEEDED {
+			if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
 				reCreate = false
 				break
 			}

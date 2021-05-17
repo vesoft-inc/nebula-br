@@ -77,7 +77,7 @@ func (b *Backup) dropBackup(name []byte) (*meta.ExecResp, error) {
 		return nil, err
 	}
 
-	if resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+	if resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 		return nil, fmt.Errorf("drop backup failed %d", resp.GetCode())
 	}
 
@@ -107,12 +107,12 @@ func (b *Backup) createBackup() (*meta.CreateBackupResp, error) {
 			return nil, err
 		}
 
-		if resp.GetCode() != meta.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 			b.log.Error("backup failed", zap.String("error code", resp.GetCode().String()))
 			return nil, backupFailed
 		}
 
-		if resp.GetCode() == meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
 			return resp, nil
 		}
 
