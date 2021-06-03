@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vesoft-inc/nebula-go/nebula"
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
 )
 
 func TestHostaddrToString(t *testing.T) {

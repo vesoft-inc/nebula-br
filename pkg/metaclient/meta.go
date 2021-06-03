@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
-	"github.com/vesoft-inc/nebula-go/nebula/meta"
+	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 	"go.uber.org/zap"
 )
 

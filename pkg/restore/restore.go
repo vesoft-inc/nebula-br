@@ -18,8 +18,8 @@ import (
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
 
-	"github.com/vesoft-inc/nebula-go/nebula"
-	"github.com/vesoft-inc/nebula-go/nebula/meta"
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
+	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"

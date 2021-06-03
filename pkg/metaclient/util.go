@@ -3,7 +3,7 @@ package metaclient
 import (
 	"strconv"
 
-	"github.com/vesoft-inc/nebula-go/nebula"
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
 )
 
 func HostaddrToString(host *nebula.HostAddr) string {
