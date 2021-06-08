@@ -29,13 +29,14 @@ func TestS3StorageCommand(t *testing.T) {
 	s3.SetBackupName("backupname3")
 	host := "127.0.0.1"
 	spaceID := "1"
-	cmd := s3.BackupStorageCommand("/home/nebula/", host, spaceID)
-	dst := s3.URI() + "/storage/" + host + "/" + spaceID + "/"
-	assert.Equal(t, cmd, "aws --cli-read-timeout  s3 sync /home/nebula/ "+dst)
+	dataDir := []string{"/home/nebula/"}
+	cmd := s3.BackupStorageCommand(dataDir, host, spaceID)
+	dst := s3.URI() + "/storage/" + host + "/" + "data0/" + spaceID + "/"
+	assert.Equal(t, cmd[0], "aws --cli-read-timeout  s3 sync /home/nebula/ "+dst)
 
-	cmd = s3.RestoreStorageCommand(host, []string{spaceID}, "/home/data")
-	expectCmd := "aws --cli-read-timeout  s3 sync " + s3.URI() + "/storage/" + host + "/" + " /home/data"
-	assert.Equal(t, cmd, expectCmd)
+	cmd = s3.RestoreStorageCommand(host, []string{spaceID}, []string{"/home/data"})
+	expectCmd := "aws --cli-read-timeout  s3 sync " + s3.URI() + "/storage/" + host + "/data0/" + " /home/data"
+	assert.Equal(t, cmd[0], expectCmd)
 }
 
 func TestS3MetaCommand(t *testing.T) {
