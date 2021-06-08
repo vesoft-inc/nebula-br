@@ -2,15 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 
 	"github.com/spf13/cobra"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+	"github.com/vesoft-inc/nebula-br/pkg/log"
 	"github.com/vesoft-inc/nebula-br/pkg/restore"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
-
-var configFile string
 
 func NewRestoreCMD() *cobra.Command {
 	restoreCmd := &cobra.Command{
@@ -20,8 +17,17 @@ func NewRestoreCMD() *cobra.Command {
 	}
 
 	restoreCmd.AddCommand(newFullRestoreCmd())
-	restoreCmd.PersistentFlags().StringVar(&configFile, "config", "restore.yaml", "config file path")
-	restoreCmd.MarkPersistentFlagRequired("config")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfig.Meta, "meta", "", "meta server")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfig.BackendUrl, "storage", "", "storage path")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfig.User, "user", "", "user for meta and storage")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfig.BackupName, "name", "", "backup name")
+	restoreCmd.PersistentFlags().IntVar(&restoreConfig.MaxConcurrent, "concurrent", 5, "max concurrent(for aliyun OSS)")
+	restoreCmd.PersistentFlags().StringVar(&restoreConfig.CommandArgs, "extra_args", "", "storage utils(oss/hdfs/s3) args for restore")
+
+	restoreCmd.MarkPersistentFlagRequired("meta")
+	restoreCmd.MarkPersistentFlagRequired("storage")
+	restoreCmd.MarkPersistentFlagRequired("user")
+	restoreCmd.MarkPersistentFlagRequired("name")
 
 	return restoreCmd
 }
@@ -31,41 +37,9 @@ func newFullRestoreCmd() *cobra.Command {
 		Use:   "full",
 		Short: "full restore Nebula Graph Database",
 		Args: func(cmd *cobra.Command, args []string) error {
-			logger, _ := zap.NewProduction()
-			defer logger.Sync() // flushes buffer, if any
-			yamlFile, err := ioutil.ReadFile(configFile)
-			if err != nil {
-				return err
-			}
-
-			err = yaml.Unmarshal(yamlFile, &restoreConfig)
-			if err != nil {
-				return err
-			}
-
-			for _, n := range restoreConfig.MetaNodes {
-				err := checkSSH(n.Addrs, n.User, logger)
-				if err != nil {
-					return err
-				}
-				if !checkPathAbs(n.DataDir) {
-					logger.Error("StorageDataDir must be an absolute path.", zap.String("dir", n.DataDir))
-					return fmt.Errorf("StorageDataDir must be an absolute path")
-				}
-
-				if !checkPathAbs(n.RootDir) {
-					logger.Error("StorageDataDir must be an absolute path.", zap.String("dir", n.RootDir))
-					return fmt.Errorf("StorageDataDir must be an absolute path")
-				}
-			}
 
 			if restoreConfig.MaxConcurrent <= 0 {
 				restoreConfig.MaxConcurrent = 5
-			}
-
-			if len(restoreConfig.BackupName) == 0 {
-				logger.Error("The backup_name configuration must be set")
-				return fmt.Errorf("The backup_name configuration must be set")
 			}
 
 			return nil
@@ -73,15 +47,19 @@ func newFullRestoreCmd() *cobra.Command {
 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// nil mean backup all space
-			logger, _ := zap.NewProduction()
-
-			defer logger.Sync() // flushes buffer, if any
-
-			r := restore.NewRestore(restoreConfig, logger)
-			err := r.RestoreCluster()
+			logger, err := log.NewLogger(config.LogPath)
 			if err != nil {
 				return err
 			}
+
+			defer logger.Sync() // flushes buffer, if any
+
+			r := restore.NewRestore(restoreConfig, logger.Logger)
+			err = r.RestoreCluster()
+			if err != nil {
+				return err
+			}
+			fmt.Println("restore successed")
 			return nil
 		},
 	}

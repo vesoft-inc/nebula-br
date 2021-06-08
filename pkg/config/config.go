@@ -1,35 +1,37 @@
 package config
 
 type NodeInfo struct {
-	Addrs   string `yaml:"addrs"`
-	RootDir string `yaml:"root"`
-	DataDir string `yaml:"data"`
-	User    string `yaml:"user"`
+	Addrs   string
+	RootDir string
+	DataDir []string
+	User    string
 }
 
 type BackupConfig struct {
-	MetaNodes         []NodeInfo `yaml:"meta_nodes"`
-	StorageNodes      []NodeInfo `yaml:"storage_nodes"`
-	SpaceNames        []string   `yaml:"space_names"`
-	BackendUrl        string     `yaml:"backend"`
-	MaxSSHConnections int        `yaml:"max_ssh_connections"`
+	Meta              string
+	SpaceNames        []string
+	BackendUrl        string
+	MaxSSHConnections int
+	User              string
 	// Only for OSS for now
-	MaxConcurrent int    `yaml:"max_concurrent"`
-	CommandArgs   string `yaml:"command_args"`
+	MaxConcurrent int
+	CommandArgs   string
 }
 
 type RestoreConfig struct {
-	MetaNodes    []NodeInfo `yaml:"meta_nodes,flow"`
-	StorageNodes []NodeInfo `yaml:"storage_nodes,flow"`
-
-	BackendUrl string `yaml:"backend"`
-	BackupName string `yaml:"backup_name"`
+	Meta              string
+	BackendUrl        string
+	MaxSSHConnections int
+	User              string
+	BackupName        string
 	// Only for OSS for now
-	MaxConcurrent int    `yaml:"max_concurrent"`
-	CommandArgs   string `yaml:"command_args"`
+	MaxConcurrent int
+	CommandArgs   string
 }
 
 type CleanupConfig struct {
 	BackupName string
 	MetaServer []string
 }
+
+var LogPath string

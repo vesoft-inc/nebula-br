@@ -1,8 +1,11 @@
 package storage
 
 import (
+	"bufio"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -32,9 +35,15 @@ func (s *S3BackedStore) BackupPreCommand() []string {
 	return nil
 }
 
-func (s *S3BackedStore) BackupStorageCommand(src string, host string, spaceID string) string {
-	storageDir := s.url + "/" + "storage/" + host + "/" + spaceID + "/"
-	return "aws " + s.args + " s3 sync " + src + " " + storageDir
+func (s *S3BackedStore) BackupStorageCommand(src []string, host string, spaceID string) []string {
+	var cmd []string
+	for i, dir := range src {
+		storageDir := s.url + "/" + "storage/" + host + "/" + "data" + strconv.Itoa(i) + "/" + spaceID + "/"
+		cmdStr := "aws " + s.args + " s3 sync " + dir + " " + storageDir
+		cmd = append(cmd, cmdStr)
+	}
+
+	return cmd
 }
 
 func (s S3BackedStore) BackupMetaCommand(src []string) string {
@@ -71,10 +80,15 @@ func (s S3BackedStore) RestoreMetaCommand(src []string, dst string) (string, []s
 	}
 	return fmt.Sprintf("aws %s s3 sync %s "+dst, s.args, metaDir), sstFiles
 }
-func (s S3BackedStore) RestoreStorageCommand(host string, spaceID []string, dst string) string {
-	storageDir := s.url + "/storage/" + host + "/"
+func (s S3BackedStore) RestoreStorageCommand(host string, spaceID []string, dst []string) []string {
+	var cmd []string
+	for i, d := range dst {
+		storageDir := s.url + "/storage/" + host + "/" + "data" + strconv.Itoa(i) + "/"
+		cmdStr := fmt.Sprintf("aws %s s3 sync %s "+d, s.args, storageDir)
+		cmd = append(cmd, cmdStr)
+	}
 
-	return fmt.Sprintf("aws %s s3 sync %s "+dst, s.args, storageDir)
+	return cmd
 }
 func (s S3BackedStore) RestoreMetaPreCommand(dst string) string {
 	return "rm -rf " + dst + " && mkdir -p " + dst
@@ -88,4 +102,19 @@ func (s S3BackedStore) URI() string {
 
 func (s S3BackedStore) CheckCommand() string {
 	return "aws " + s.args + " s3 ls " + s.url
+}
+
+func (s S3BackedStore) ListBackupCommand() ([]string, error) {
+	output, err := exec.Command("aws", "s3", "ls", s.url).Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	sc := bufio.NewScanner(strings.NewReader(string(output)))
+	for sc.Scan() {
+		w := strings.Fields(sc.Text())
+		dirs = append(dirs, strings.TrimRight(w[1], "/"))
+	}
+	return dirs, nil
 }

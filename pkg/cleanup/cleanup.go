@@ -5,7 +5,9 @@ import (
 
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
-	"github.com/vesoft-inc/nebula-go/nebula/meta"
+
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
+	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 	"go.uber.org/zap"
 )
 
@@ -41,12 +43,12 @@ func (c *Cleanup) dropBackup() (*meta.ExecResp, error) {
 			return nil, err
 		}
 
-		if resp.GetCode() != meta.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
 			c.log.Error("cleanup failed", zap.String("error code", resp.GetCode().String()))
 			return nil, CleanupError
 		}
 
-		if resp.GetCode() == meta.ErrorCode_SUCCEEDED {
+		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
 			return resp, nil
 		}
 

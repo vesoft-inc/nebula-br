@@ -1,7 +1,10 @@
 package storage
 
 import (
+	"bufio"
 	"fmt"
+	"os/exec"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -54,12 +57,17 @@ func (s HDFSBackedStore) BackupMetaCommand(src []string) string {
 	return s.copyCommand(src, metaDir)
 }
 
-func (s HDFSBackedStore) BackupStorageCommand(src string, host string, spaceId string) string {
+func (s HDFSBackedStore) BackupStorageCommand(src []string, host string, spaceId string) []string {
+	var cmd []string
 	hosts := strings.Split(host, ":")
-	storageDir := s.url + "/" + "storage/" + hosts[0] + "/" + hosts[1] + "/" + spaceId
-	data := src + "/data "
-	wal := src + "/wal "
-	return "hadoop fs -mkdir -p " + storageDir + " && hadoop fs -copyFromLocal " + s.args + " " + data + wal + storageDir
+	for i, dir := range src {
+		storageDir := s.url + "/" + "storage/" + hosts[0] + "/" + hosts[1] + "/" + "data" + strconv.Itoa(i) + "/" + spaceId
+		data := dir + "/data "
+		wal := dir + "/wal "
+		cmdStr := "hadoop fs -mkdir -p " + storageDir + " && hadoop fs -copyFromLocal " + s.args + " " + data + wal + storageDir
+		cmd = append(cmd, cmdStr)
+	}
+	return cmd
 }
 
 func (s HDFSBackedStore) BackupMetaFileCommand(src string) []string {
@@ -95,15 +103,20 @@ func (s HDFSBackedStore) RestoreMetaCommand(src []string, dst string) (string, [
 	return fmt.Sprintf("hadoop fs -copyToLocal -f %s %s %s", files, s.args, dst), sstFiles
 }
 
-func (s HDFSBackedStore) RestoreStorageCommand(host string, spaceID []string, dst string) string {
+func (s HDFSBackedStore) RestoreStorageCommand(host string, spaceID []string, dst []string) []string {
 	hosts := strings.Split(host, ":")
-	storageDir := s.url + "/storage/" + hosts[0] + "/" + hosts[1] + "/"
-	dirs := ""
-	for _, id := range spaceID {
-		dirs += storageDir + id + " "
+	var cmd []string
+	for i, d := range dst {
+		storageDir := s.url + "/storage/" + hosts[0] + "/" + hosts[1] + "/" + "data" + strconv.Itoa(i) + "/"
+		dirs := ""
+		for _, id := range spaceID {
+			dirs += storageDir + id + " "
+		}
+		cmdStr := fmt.Sprintf("hadoop fs -copyToLocal %s %s %s", dirs, s.args, d)
+		cmd = append(cmd, cmdStr)
 	}
 
-	return fmt.Sprintf("hadoop fs -copyToLocal %s %s %s", dirs, s.args, dst)
+	return cmd
 }
 
 func (s HDFSBackedStore) RestoreMetaPreCommand(dst string) string {
@@ -118,4 +131,27 @@ func (s HDFSBackedStore) RestoreStoragePreCommand(dst string) string {
 
 func (s HDFSBackedStore) CheckCommand() string {
 	return "hadoop fs -ls " + s.url
+}
+
+func (s HDFSBackedStore) ListBackupCommand() ([]string, error) {
+	output, err := exec.Command("hadoop", "fs", "-ls", "-C", s.url).Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var dirs []string
+	sc := bufio.NewScanner(strings.NewReader(string(output)))
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.HasPrefix(line, "hdfs://") {
+			break
+		}
+		index := strings.Index(line, s.url)
+		if index == -1 {
+			return nil, fmt.Errorf("Wrong hdfs file name %s", line)
+		}
+		dirs = append(dirs, line[len(s.url):])
+	}
+
+	return dirs, nil
 }
