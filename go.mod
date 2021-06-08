@@ -9,7 +9,7 @@ require (
 	github.com/scylladb/go-set v1.0.2
 	github.com/spf13/cobra v1.1.1
 	github.com/stretchr/testify v1.6.1
-	github.com/vesoft-inc/nebula-go/v2 v2.0.0-20210603033436-24ea78f90a1e
+	github.com/vesoft-inc/nebula-go/v2 v2.0.0-20210608032721-3e7bf449d35f
 	go.uber.org/zap v1.10.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
