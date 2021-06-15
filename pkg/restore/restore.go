@@ -4,19 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	_ "os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
+	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"github.com/scylladb/go-set/strset"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
+	"github.com/vesoft-inc/nebula-br/pkg/utils"
 
 	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
@@ -102,24 +103,13 @@ func (r *Restore) downloadMetaFile() error {
 }
 
 func (r *Restore) restoreMetaFile() (*meta.BackupMeta, error) {
-	file, err := os.OpenFile("/tmp/"+r.metaFileName, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, err
+	filename := "/tmp/" + r.metaFileName // downloaded file before
+	m, err := utils.GetMetaFromFile(r.log, filename)
+	if m == nil {
+		r.log.Error("failed to get meta", zap.String("file", filename),
+			zap.Error(err))
 	}
-
-	defer file.Close()
-
-	trans := thrift.NewStreamTransport(file, file)
-
-	binaryIn := thrift.NewBinaryProtocol(trans, false, true)
-	defer trans.Close()
-	m := meta.NewBackupMeta()
-	err = m.Read(binaryIn)
-	if err != nil {
-		return nil, err
-	}
-
-	return m, nil
+	return m, err
 }
 
 func (r *Restore) downloadMeta(g *errgroup.Group, file []string) map[string][][]byte {

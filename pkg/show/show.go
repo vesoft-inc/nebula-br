@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
+	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"github.com/olekukonko/tablewriter"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+	"github.com/vesoft-inc/nebula-br/pkg/utils"
+	_ "github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 	"go.uber.org/zap"
 )
 
@@ -39,21 +40,11 @@ func NewShow(backendUrl string, log *zap.Logger) *Show {
 }
 
 func (r *Show) readMetaFile(metaName string) ([]string, error) {
-	file, err := os.OpenFile("/tmp/"+metaName, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	defer file.Close()
-
-	trans := thrift.NewStreamTransport(file, file)
-
-	binaryIn := thrift.NewBinaryProtocol(trans, false, true)
-	defer trans.Close()
-	m := meta.NewBackupMeta()
-	err = m.Read(binaryIn)
-	if err != nil {
-		r.log.Error("read meta file failed", zap.Error(err))
+	filename := "/tmp/" + metaName
+	m, err := utils.GetMetaFromFile(r.log, filename)
+	if m == nil {
+		r.log.Error("failed to get meta", zap.String("file", filename),
+			zap.Error(err))
 		return nil, err
 	}
 
