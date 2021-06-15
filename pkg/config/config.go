@@ -19,11 +19,12 @@ type BackupConfig struct {
 }
 
 type RestoreConfig struct {
-	Meta              string
-	BackendUrl        string
-	MaxSSHConnections int
-	User              string
-	BackupName        string
+	Meta                string
+	BackendUrl          string
+	MaxSSHConnections   int
+	User                string
+	BackupName          string
+	AllowStandaloneMeta bool
 	// Only for OSS for now
 	MaxConcurrent int
 	CommandArgs   string

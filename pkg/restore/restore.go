@@ -445,7 +445,10 @@ func (r *Restore) getMetaInfo(hosts []*nebula.HostAddr) ([]config.NodeInfo, erro
 	var info []config.NodeInfo
 
 	if len(hosts) == 0 {
-		return nil, listClusterFailed
+		r.log.Warn("meta host list is nil")
+		if !r.config.AllowStandaloneMeta {
+			return nil, listClusterFailed
+		}
 	}
 
 	for _, v := range hosts {
