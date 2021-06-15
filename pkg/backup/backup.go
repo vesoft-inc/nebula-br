@@ -3,14 +3,14 @@ package backup
 import (
 	"errors"
 	"fmt"
-	"os"
+	_ "os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
+	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 	"golang.org/x/sync/errgroup"
@@ -19,6 +19,7 @@ import (
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
+	"github.com/vesoft-inc/nebula-br/pkg/utils"
 	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 )
@@ -129,29 +130,14 @@ func (b *Backup) createBackup() (*meta.CreateBackupResp, error) {
 func (b *Backup) writeMetadata(meta *meta.BackupMeta) error {
 	b.metaFileName = tmpDir + string(meta.BackupName[:]) + ".meta"
 
-	file, err := os.OpenFile(b.metaFileName, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
-
-	trans := thrift.NewStreamTransport(file, file)
-
-	binaryOut := thrift.NewBinaryProtocol(trans, false, true)
-	defer trans.Close()
 	var absMetaFiles [][]byte
 	for _, files := range meta.MetaFiles {
 		f := filepath.Base(string(files[:]))
 		absMetaFiles = append(absMetaFiles, []byte(f))
 	}
 	meta.MetaFiles = absMetaFiles
-	err = meta.Write(binaryOut)
-	if err != nil {
-		return err
-	}
-	binaryOut.Flush()
-	return nil
+
+	return utils.PutMetaToFile(b.log, meta, b.metaFileName)
 }
 
 func (b *Backup) BackupCluster() error {
