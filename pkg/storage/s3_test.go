@@ -4,19 +4,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vesoft-inc/nebula-br/pkg/context"
 	"go.uber.org/zap"
 )
 
 var logger, _ = zap.NewProduction()
 
 func TestS3SetBackupName(t *testing.T) {
-	s3 := NewS3BackendStore("s3://nebulabackup/", logger, 5, "--cli-read-timeout")
+	s3 := NewS3BackendStore("s3://nebulabackup/", logger, 5, "--cli-read-timeout", &context.Context{})
 	s3.SetBackupName("backupname1")
 	assert.Equal(t, s3.backupName, "backupname1")
 
 	assert.Equal(t, s3.URI(), "s3://nebulabackup/backupname1")
 
-	s3 = NewS3BackendStore("s3://nebulabackup", logger, 5, "")
+	s3 = NewS3BackendStore("s3://nebulabackup", logger, 5, "", &context.Context{})
 	s3.SetBackupName("backupname2")
 	assert.Equal(t, s3.backupName, "backupname2")
 
@@ -25,7 +26,7 @@ func TestS3SetBackupName(t *testing.T) {
 
 func TestS3StorageCommand(t *testing.T) {
 	backupRegion := "s3://nebulabackup/"
-	s3 := NewS3BackendStore(backupRegion, logger, 5, "--cli-read-timeout ")
+	s3 := NewS3BackendStore(backupRegion, logger, 5, "--cli-read-timeout ", &context.Context{})
 	s3.SetBackupName("backupname3")
 	host := "127.0.0.1"
 	spaceID := "1"
@@ -40,7 +41,7 @@ func TestS3StorageCommand(t *testing.T) {
 }
 
 func TestS3MetaCommand(t *testing.T) {
-	s3 := NewS3BackendStore("s3://nebulabackup", logger, 5, "")
+	s3 := NewS3BackendStore("s3://nebulabackup", logger, 5, "", &context.Context{})
 	s3.SetBackupName("backupmeta")
 	files := []string{"/data/a.sst", "/data/b.sst", "/data/c.sst"}
 	cmd := s3.BackupMetaCommand(files)
@@ -54,7 +55,7 @@ func TestS3MetaCommand(t *testing.T) {
 
 func TestS3BackupMetaFileCommand(t *testing.T) {
 	backupRegion := "s3://nebulabackupfile/"
-	s3 := NewS3BackendStore(backupRegion, logger, 5, "")
+	s3 := NewS3BackendStore(backupRegion, logger, 5, "", &context.Context{})
 	s3.SetBackupName("backupmetafile")
 	metaFile := "/home/nebula/backup.meta"
 	cmd := s3.BackupMetaFileCommand(metaFile)
