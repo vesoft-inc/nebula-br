@@ -14,6 +14,7 @@ import (
 	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"github.com/scylladb/go-set/strset"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
+	ctx0 "github.com/vesoft-inc/nebula-br/pkg/context"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
@@ -35,6 +36,7 @@ type Restore struct {
 	storageNodes []config.NodeInfo
 	metaNodes    []config.NodeInfo
 	metaFileName string
+	ctx          *ctx0.Context
 }
 
 type spaceInfo struct {
@@ -49,14 +51,23 @@ var spaceNotMatching = errors.New("Space mismatch")
 var dropSpaceFailed = errors.New("drop space failed")
 var getSpaceFailed = errors.New("get space failed")
 
-func NewRestore(config config.RestoreConfig, log *zap.Logger) *Restore {
-	backend, err := storage.NewExternalStorage(config.BackendUrl, log, config.MaxConcurrent, config.CommandArgs)
+func NewRestore(config config.RestoreConfig, log *zap.Logger) (*Restore, error) {
+	local_addr, err := remote.GetAddresstoReachRemote(strings.Split(config.Meta, ":")[0], config.User, log)
+	if err != nil {
+		log.Error("get local address failed", zap.Error(err))
+		return nil, err
+	}
+
+	log.Info("local address", zap.String("address", local_addr))
+	ctx := ctx0.NewContext(local_addr, nil)
+
+	backend, err := storage.NewExternalStorage(config.BackendUrl, log, config.MaxConcurrent, config.CommandArgs, ctx)
 	if err != nil {
 		log.Error("new external storage failed", zap.Error(err))
-		return nil
+		return nil, err
 	}
 	backend.SetBackupName(config.BackupName)
-	return &Restore{config: config, log: log, backend: backend}
+	return &Restore{config: config, log: log, backend: backend, ctx: ctx}, nil
 }
 
 func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
@@ -115,8 +126,11 @@ func (r *Restore) restoreMetaFile() (*meta.BackupMeta, error) {
 func (r *Restore) downloadMeta(g *errgroup.Group, file []string) map[string][][]byte {
 	sstFiles := make(map[string][][]byte)
 	for _, n := range r.metaNodes {
-		cmd, files := r.backend.RestoreMetaCommand(file, n.DataDir[0])
 		ipAddr := strings.Split(n.Addrs, ":")
+		r.ctx.RemoteAddr = ipAddr[0]
+
+		cmd, files := r.backend.RestoreMetaCommand(file, n.DataDir[0])
+
 		func(addr string, user string, cmd string, log *zap.Logger) {
 			g.Go(func() error {
 				client, err := remote.NewClient(addr, user, log)
@@ -149,6 +163,14 @@ func (r *Restore) downloadStorage(g *errgroup.Group, info map[nebula.GraphSpaceI
 		}
 	}
 
+	for i, osvr := range cpHosts {
+		r.log.Sugar().Infof(
+			"storage server moved from old: %s to new: %s, contained graphspaceid: %v",
+			osvr,
+			r.storageNodes[i].Addrs,
+			idMap[osvr])
+	}
+
 	sort.Strings(cpHosts)
 	storageIPmap := make(map[string]string)
 	for i, ip := range cpHosts {
@@ -159,7 +181,7 @@ func (r *Restore) downloadStorage(g *errgroup.Group, info map[nebula.GraphSpaceI
 		for _, d := range sNode.DataDir {
 			nebulaDirs = append(nebulaDirs, d+"/nebula")
 		}
-
+		r.ctx.RemoteAddr = ip
 		cmds := r.backend.RestoreStorageCommand(ip, ids, nebulaDirs)
 		addr := strings.Split(sNode.Addrs, ":")
 		if ip != sNode.Addrs {
@@ -610,6 +632,7 @@ func (r *Restore) RestoreCluster() error {
 		r.log.Error("list cluster info failed", zap.Error(err))
 		return err
 	}
+	r.log.Info("listcluster result", zap.String("listcluster", metaclient.ListClusterInfoRespToString(resp)))
 
 	r.setStorageInfo(resp)
 
@@ -618,6 +641,10 @@ func (r *Restore) RestoreCluster() error {
 		return err
 	}
 	r.metaNodes = metaInfo
+
+	// show target cluster map
+	// r.storageNodes
+	// r.metaNodes
 
 	for _, m := range metaInfo {
 		r.log.Info("meta node", zap.String("node addr", m.Addrs))

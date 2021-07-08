@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	_ "os"
@@ -16,6 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/vesoft-inc/nebula-br/pkg/config"
+	ctx0 "github.com/vesoft-inc/nebula-br/pkg/context"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
@@ -44,21 +46,50 @@ func (e *BackupError) Error() string {
 	return e.msg + e.Err.Error()
 }
 
+type backupEntry struct {
+	SrcPath string
+	DestUrl string
+}
+type idPathMap map[string][]backupEntry
 type Backup struct {
 	config         config.BackupConfig
 	metaLeader     string
 	backendStorage storage.ExternalStorage
 	log            *zap.Logger
 	metaFileName   string
+	storageMap     map[string]idPathMap
+	metaMap        map[string]idPathMap
+	storeCtx       *ctx0.Context
 }
 
-func NewBackupClient(cf config.BackupConfig, log *zap.Logger) *Backup {
-	backend, err := storage.NewExternalStorage(cf.BackendUrl, log, cf.MaxConcurrent, cf.CommandArgs)
+func NewBackupClient(cf config.BackupConfig, log *zap.Logger) (*Backup, error) {
+	local_addr, err := remote.GetAddresstoReachRemote(strings.Split(cf.Meta, ":")[0], cf.User, log)
+	if err != nil {
+		log.Error("get local address failed", zap.Error(err))
+		return nil, err
+	}
+	log.Info("local address", zap.String("address", local_addr))
+	var (
+		storeCtx ctx0.Context
+		backend  storage.ExternalStorage
+	)
+	backend, err = storage.NewExternalStorage(cf.BackendUrl, log, cf.MaxConcurrent, cf.CommandArgs,
+		&storeCtx)
 	if err != nil {
 		log.Error("new external storage failed", zap.Error(err))
-		return nil
+		return nil, err
 	}
-	return &Backup{config: cf, backendStorage: backend, log: log}
+
+	b := &Backup{config: cf, log: log,
+		storageMap: make(map[string]idPathMap),
+		metaMap:    make(map[string]idPathMap),
+		storeCtx:   &storeCtx}
+
+	b.storeCtx.LocalAddr = local_addr
+	b.storeCtx.Reporter = b
+	b.backendStorage = backend
+
+	return b, nil
 }
 
 func (b *Backup) dropBackup(name []byte) (*meta.ExecResp, error) {
@@ -149,6 +180,9 @@ func (b *Backup) BackupCluster() error {
 	}
 
 	meta := resp.GetMeta()
+	b.log.Info("response backup meta",
+		zap.String("backup.meta", metaclient.BackupMetaToString(meta)))
+
 	err = b.uploadAll(meta)
 	if err != nil {
 		return err
@@ -157,12 +191,27 @@ func (b *Backup) BackupCluster() error {
 	return nil
 }
 
+func (b *Backup) execPreUploadMetaCommand(metaDir string) error {
+	cmdStr := []string{"mkdir", "-p", metaDir}
+	b.log.Info("exec pre upload meta command", zap.Strings("cmd", cmdStr))
+	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	cmd.Wait()
+	return nil
+}
+
 func (b *Backup) uploadMeta(g *errgroup.Group, files []string) {
+
+	b.log.Info("start upload meta", zap.String("addr", b.metaLeader))
+	ipAddr := strings.Split(b.metaLeader, ":")
+	b.storeCtx.RemoteAddr = ipAddr[0]
 
 	b.log.Info("will upload meta", zap.Int("sst file count", len(files)))
 	cmd := b.backendStorage.BackupMetaCommand(files)
-	b.log.Info("start upload meta", zap.String("addr", b.metaLeader))
-	ipAddr := strings.Split(b.metaLeader, ":")
+
 	func(addr string, user string, cmd string, log *zap.Logger) {
 		g.Go(func() error {
 			client, err := remote.NewClient(addr, user, log)
@@ -193,6 +242,9 @@ func (b *Backup) uploadStorage(g *errgroup.Group, dirs map[string][]spaceInfo) e
 			return err
 		}
 		i := 0
+
+		b.storeCtx.RemoteAddr = ipAddrs[0]
+
 		//We need to limit the number of ssh connections per storage node
 		for id2, cp := range idMap {
 			cmds := b.backendStorage.BackupStorageCommand(cp, k, id2)
@@ -254,6 +306,12 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 		return err
 	}
 
+	err = b.execPreUploadMetaCommand(b.backendStorage.BackupMetaDir())
+	if err != nil {
+		b.log.Error("exec pre uploadmeta command failed", zap.Error(err))
+		return err
+	}
+
 	var metaFiles []string
 	for _, f := range meta.GetMetaFiles() {
 		fileName := string(f[:])
@@ -271,6 +329,7 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 			}
 		}
 	}
+
 	err = b.uploadStorage(g, storageMap)
 	if err != nil {
 		return err
@@ -304,4 +363,44 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 	b.log.Info("backup nebula cluster finished", zap.String("backupName", string(meta.GetBackupName()[:])))
 
 	return nil
+}
+
+func (b *Backup) ShowSummaries() {
+	fmt.Printf("==== backup summeries ====\n")
+	fmt.Printf("localaddr       : %s\n", b.storeCtx.LocalAddr)
+	fmt.Printf("backend.type    : %s\n", b.backendStorage.Scheme())
+	fmt.Printf("backend.url     : %s\n", b.backendStorage.URI())
+	fmt.Printf("tgt.meta.leader : %s\n", b.config.Meta)
+	if b.backendStorage.Scheme() == storage.SCHEME_LOCAL {
+		// if local, storages' snapshot would be copy to a path at that host.
+		b.showUploadSummaries(&b.metaMap, "tgt.meta.map")
+		b.showUploadSummaries(&b.storageMap, "tgt.storage.map")
+	}
+	fmt.Printf("==========================\n")
+}
+
+func (b *Backup) showUploadSummaries(m *map[string]idPathMap, msg string) {
+	o, _ := json.MarshalIndent(m, "", "  ")
+	fmt.Printf("--- %s ---\n", msg)
+	fmt.Printf("%s\n", string(o))
+}
+
+func (b *Backup) doRecordUploading(m *map[string]idPathMap, spaceId string, host string, paths []string, desturl string) {
+	if (*m)[host] == nil {
+		(*m)[host] = make(idPathMap)
+	}
+	bes := []backupEntry{}
+	for _, p := range paths {
+		bes = append(bes, backupEntry{SrcPath: p, DestUrl: desturl})
+	}
+	(*m)[host][spaceId] = append((*m)[host][spaceId], bes[:]...)
+}
+
+func (b *Backup) StorageUploadingReport(spaceid string, host string, paths []string, desturl string) {
+	b.doRecordUploading(&b.storageMap, spaceid, host, paths, desturl)
+}
+
+func (b *Backup) MetaUploadingReport(host string, paths []string, desturl string) {
+	kDefaultSid := "0"
+	b.doRecordUploading(&b.metaMap, kDefaultSid, host, paths, desturl)
 }

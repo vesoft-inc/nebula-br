@@ -71,6 +71,14 @@ func NewClientPool(addr string, user string, log *zap.Logger, count int) ([]*Cli
 	return clients, nil
 }
 
+func GetAddresstoReachRemote(addr string, user string, log *zap.Logger) (string, error) {
+	if cli, err := NewClient(addr, user, log); err == nil {
+		return strings.Split(cli.client.Conn.LocalAddr().String(), ":")[0], nil
+	} else {
+		return "", err
+	}
+}
+
 func (c *Client) Close() {
 	c.client.Close()
 }

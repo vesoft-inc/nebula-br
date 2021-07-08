@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vesoft-inc/nebula-br/pkg/context"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +20,7 @@ type S3BackedStore struct {
 	command    string
 }
 
-func NewS3BackendStore(url string, log *zap.Logger, maxConcurrent int, args string) *S3BackedStore {
+func NewS3BackendStore(url string, log *zap.Logger, maxConcurrent int, args string, ctx *context.Context) *S3BackedStore {
 	return &S3BackedStore{url: url, log: log, args: args}
 }
 
@@ -49,6 +50,10 @@ func (s *S3BackedStore) BackupStorageCommand(src []string, host string, spaceID 
 func (s S3BackedStore) BackupMetaCommand(src []string) string {
 	metaDir := s.url + "/" + "meta/"
 	return "aws " + s.args + " s3 sync " + filepath.Dir(src[0]) + " " + metaDir
+}
+
+func (s S3BackedStore) BackupMetaDir() string {
+	return s.url + "/" + "meta"
 }
 
 func (s S3BackedStore) BackupMetaFileCommand(src string) []string {
@@ -98,6 +103,9 @@ func (s S3BackedStore) RestoreStoragePreCommand(dst string) string {
 }
 func (s S3BackedStore) URI() string {
 	return s.url
+}
+func (s S3BackedStore) Scheme() string {
+	return SCHEME_S3
 }
 
 func (s S3BackedStore) CheckCommand() string {

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vesoft-inc/nebula-br/pkg/context"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +20,7 @@ type OSSBackedStore struct {
 	args          string
 }
 
-func NewOSSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string) *OSSBackedStore {
+func NewOSSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string, ctx *context.Context) *OSSBackedStore {
 	return &OSSBackedStore{url: url, log: log, maxConcurrent: strconv.Itoa(maxConcurrent), args: args}
 }
 
@@ -50,6 +51,9 @@ func (s OSSBackedStore) BackupMetaCommand(src []string) string {
 	return "ossutil cp -r " + filepath.Dir(src[0]) + " " + metaDir + " " + s.args + " -j " + s.maxConcurrent
 }
 
+func (s OSSBackedStore) BackupMetaDir() string {
+	return s.url + "/" + "meta"
+}
 func (s OSSBackedStore) BackupMetaFileCommand(src string) []string {
 	if len(s.args) == 0 {
 		return []string{"ossutil", "cp", "-r", src, s.url + "/", "-j", s.maxConcurrent}
@@ -99,6 +103,10 @@ func (s OSSBackedStore) RestoreStoragePreCommand(dst string) string {
 }
 func (s OSSBackedStore) URI() string {
 	return s.url
+}
+
+func (s OSSBackedStore) Scheme() string {
+	return SCHEME_OSS
 }
 
 func (s OSSBackedStore) CheckCommand() string {

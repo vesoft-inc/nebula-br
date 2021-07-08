@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vesoft-inc/nebula-br/pkg/context"
 	"go.uber.org/zap"
 )
 
@@ -14,10 +15,11 @@ type LocalBackedStore struct {
 	backupName string
 	log        *zap.Logger
 	args       string
+	ctx        *context.Context
 }
 
-func NewLocalBackedStore(dir string, log *zap.Logger, maxConcurrent int, args string) *LocalBackedStore {
-	return &LocalBackedStore{dir: dir, log: log, args: args}
+func NewLocalBackedStore(dir string, log *zap.Logger, maxConcurrent int, args string, ctx *context.Context) *LocalBackedStore {
+	return &LocalBackedStore{dir: dir, log: log, args: args, ctx: ctx}
 }
 
 func (s *LocalBackedStore) SetBackupName(name string) {
@@ -27,6 +29,10 @@ func (s *LocalBackedStore) SetBackupName(name string) {
 
 func (s LocalBackedStore) URI() string {
 	return s.dir
+}
+
+func (s LocalBackedStore) Scheme() string {
+	return SCHEME_LOCAL
 }
 
 func (s LocalBackedStore) copyCommand(src []string, dir string) string {
@@ -39,21 +45,67 @@ func (s LocalBackedStore) copyCommand(src []string, dir string) string {
 	return fmt.Sprintf(cmdFormat, s.args, files)
 }
 
+func (s LocalBackedStore) remoteCopyCommand(src []string, dstHost string, dstDir string) string {
+	cmdFormat := "scp -r %s %s " + dstHost + ":" + dstDir
+	files := ""
+	for _, f := range src {
+		files += f + " "
+	}
+
+	return fmt.Sprintf(cmdFormat, s.args, files)
+}
+
 func (s *LocalBackedStore) BackupPreCommand() []string {
 	return []string{"mkdir", s.dir}
 }
 
-func (s LocalBackedStore) BackupMetaCommand(src []string) string {
-	metaDir := s.dir + "/" + "meta"
+func (s LocalBackedStore) backupMetaCommandLocalCopy(src []string) string {
+	metaDir := s.BackupMetaDir()
+
+	desturl := s.ctx.RemoteAddr
+	desturl += ":"
+	desturl += metaDir
+
+	s.ctx.Reporter.MetaUploadingReport(s.ctx.RemoteAddr, src, desturl)
+
 	return s.copyCommand(src, metaDir)
+}
+
+func (s LocalBackedStore) backupMetaCommandRemoteCopy(src []string) string {
+	metaDir := s.BackupMetaDir()
+
+	desturl := s.ctx.LocalAddr
+	desturl += ":"
+	desturl += metaDir
+
+	s.ctx.Reporter.MetaUploadingReport(s.ctx.RemoteAddr, src, desturl)
+
+	return s.remoteCopyCommand(src, s.ctx.LocalAddr, metaDir)
+}
+
+func (s LocalBackedStore) BackupMetaDir() string {
+	return s.dir + "/" + "meta"
+}
+
+func (s LocalBackedStore) BackupMetaCommand(src []string) string {
+	return s.backupMetaCommandRemoteCopy(src)
 }
 
 func (s LocalBackedStore) BackupStorageCommand(src []string, host string, spaceId string) []string {
 	var cmd []string
 	for i, dir := range src {
-		storageDir := s.dir + "/" + "storage/" + host + "/" + "data" + strconv.Itoa(i) + "/" + spaceId
+		storageDir := s.dir + "/" + "storage/" + host + "/" + "data" + strconv.Itoa(i) + "/" + spaceId //TODO(ywj): extract a common rule for tgt dir
 		data := dir + "/data "
 		wal := dir + "/wal "
+
+		desturl := s.ctx.RemoteAddr
+		desturl += ":"
+		desturl += storageDir
+
+		srcdirs := []string{data, wal}
+
+		s.ctx.Reporter.StorageUploadingReport(spaceId, s.ctx.RemoteAddr, srcdirs, desturl)
+
 		cmdStr := "mkdir -p " + storageDir + " && cp -rf " + s.args + " " + data + wal + storageDir
 		cmd = append(cmd, cmdStr)
 	}
@@ -80,17 +132,36 @@ func (s LocalBackedStore) RestoreMetaFileCommand(file string, dst string) []stri
 	return args
 }
 
-func (s LocalBackedStore) RestoreMetaCommand(src []string, dst string) (string, []string) {
-	metaDir := s.dir + "/" + "meta/"
+func (s LocalBackedStore) restoreMetaCommandFromLocal(src []string, dst string) (string, []string) {
+	metaDir := s.BackupMetaDir()
 	files := ""
 	var sstFiles []string
 	for _, f := range src {
-		file := metaDir + f
+		file := metaDir + "/" + f
 		files += file + " "
 		dstFile := dst + "/" + f
 		sstFiles = append(sstFiles, dstFile)
 	}
 	return fmt.Sprintf("cp -rf %s %s %s", files, s.args, dst), sstFiles
+}
+
+func (s LocalBackedStore) restoreMetaCommandFromRemote(src []string, dst string) (string, []string) {
+	metaDir := s.BackupMetaDir()
+	files := ""
+	var sstFiles []string
+	for _, f := range src {
+		file := metaDir + "/" + f
+		srcFile := s.ctx.LocalAddr + ":" + file
+		files += srcFile + " "
+
+		dstFile := dst + "/" + f
+		sstFiles = append(sstFiles, dstFile)
+	}
+	return fmt.Sprintf("scp -r %s %s %s", s.args, files, dst), sstFiles
+}
+
+func (s LocalBackedStore) RestoreMetaCommand(src []string, dst string) (string, []string) {
+	return s.restoreMetaCommandFromRemote(src, dst)
 }
 
 func (s LocalBackedStore) RestoreStorageCommand(host string, spaceID []string, dst []string) []string {

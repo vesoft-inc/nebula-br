@@ -16,6 +16,7 @@ type BackupConfig struct {
 	// Only for OSS for now
 	MaxConcurrent int
 	CommandArgs   string
+	Verbose       bool
 }
 
 type RestoreConfig struct {

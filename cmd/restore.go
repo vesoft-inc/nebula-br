@@ -55,7 +55,12 @@ func newFullRestoreCmd() *cobra.Command {
 
 			defer logger.Sync() // flushes buffer, if any
 
-			r := restore.NewRestore(restoreConfig, logger.Logger)
+			var r *restore.Restore
+			r, err = restore.NewRestore(restoreConfig, logger.Logger)
+			if err != nil {
+				return err
+			}
+
 			err = r.RestoreCluster()
 			if err != nil {
 				return err

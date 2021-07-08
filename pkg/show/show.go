@@ -31,7 +31,7 @@ type showInfo struct {
 var tableHeader []string = []string{"name", "create_time", "spaces", "full_backup", "specify_space"}
 
 func NewShow(backendUrl string, log *zap.Logger) *Show {
-	backend, err := storage.NewExternalStorage(backendUrl, log, 5, "")
+	backend, err := storage.NewExternalStorage(backendUrl, log, 5, "", nil)
 	if err != nil {
 		log.Error("new external storage failed", zap.Error(err))
 		return nil
