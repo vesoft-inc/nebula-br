@@ -41,12 +41,14 @@ func NewClient(addr string, user string, log *zap.Logger) (*Client, error) {
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 	}
 
-	retry := 1
+	retry := 0
 	for retry < 3 {
-		client, err := ssh.Dial("tcp", net.JoinHostPort(addr, "22"), config)
+		var client *ssh.Client
+		client, err = ssh.Dial("tcp", net.JoinHostPort(addr, "22"), config)
 		if err != nil {
-			log.Error("unable to connect host, will retry", zap.Error(err), zap.String("host", addr), zap.String("user", user))
-			time.Sleep(time.Second * 3)
+			log.Error("unable to connect host, will retry", zap.Int("attemp", retry), zap.Error(err), zap.String("host", addr), zap.String("user", user))
+			time.Sleep(time.Second * 1)
+			retry += 1
 			continue
 		}
 		return &Client{client, addr, user, log}, nil
@@ -73,6 +75,7 @@ func NewClientPool(addr string, user string, log *zap.Logger, count int) ([]*Cli
 
 func GetAddresstoReachRemote(addr string, user string, log *zap.Logger) (string, error) {
 	if cli, err := NewClient(addr, user, log); err == nil {
+		log.Info("succeed to reach remote", zap.String("addr of local", cli.client.Conn.LocalAddr().String()))
 		return strings.Split(cli.client.Conn.LocalAddr().String(), ":")[0], nil
 	} else {
 		return "", err
