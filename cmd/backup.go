@@ -18,9 +18,21 @@ func NewBackupCmd() *cobra.Command {
 
 	backupCmd.AddCommand(newFullBackupCmd())
 	backupCmd.PersistentFlags().StringVar(&backupConfig.Meta, "meta", "", "meta server")
-	backupCmd.PersistentFlags().StringArrayVar(&backupConfig.SpaceNames, "spaces", nil, "space names")
-	backupCmd.PersistentFlags().StringVar(&backupConfig.BackendUrl, "storage", "", "storage path")
-	backupCmd.PersistentFlags().StringVar(&backupConfig.User, "user", "", "user for meta/storage")
+	backupCmd.PersistentFlags().StringArrayVar(&backupConfig.SpaceNames, "spaces", nil,
+		`(EXPERIMENTAL)space names.
+    By this option, user can specify which spaces to backup. Now this feature is still experimental.
+    `)
+	backupCmd.PersistentFlags().StringVar(&backupConfig.BackendUrl, "storage", "",
+		`backup target url, format: <SCHEME>://<PATH>.
+    <SCHEME>: a string indicating which backend type. optional: local, hdfs.
+    now hdfs and local is supported, s3 and oss are still experimental.
+    example:
+    for local - "local:///the/local/path/to/backup"
+    for hdfs  - "hdfs://example_host:example_port/examplepath"
+    (EXPERIMENTAL) for oss - "oss://example/url/to/the/backup"
+    (EXPERIMENTAL) for s3  - "s3://example/url/to/the/backup"
+    `)
+	backupCmd.PersistentFlags().StringVar(&backupConfig.User, "user", "", "username to login into the hosts where meta/storage service located")
 	backupCmd.PersistentFlags().IntVar(&backupConfig.MaxSSHConnections, "connection", 5, "max ssh connection")
 	backupCmd.PersistentFlags().IntVar(&backupConfig.MaxConcurrent, "concurrent", 5, "max concurrent(for aliyun OSS)")
 	backupCmd.PersistentFlags().StringVar(&backupConfig.CommandArgs, "extra_args", "", "backup storage utils(oss/hdfs/s3) args for backup")
