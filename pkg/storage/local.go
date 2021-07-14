@@ -132,19 +132,6 @@ func (s LocalBackedStore) RestoreMetaFileCommand(file string, dst string) []stri
 	return args
 }
 
-func (s LocalBackedStore) restoreMetaCommandFromLocal(src []string, dst string) (string, []string) {
-	metaDir := s.BackupMetaDir()
-	files := ""
-	var sstFiles []string
-	for _, f := range src {
-		file := metaDir + "/" + f
-		files += file + " "
-		dstFile := dst + "/" + f
-		sstFiles = append(sstFiles, dstFile)
-	}
-	return fmt.Sprintf("cp -rf %s %s %s", files, s.args, dst), sstFiles
-}
-
 func (s LocalBackedStore) restoreMetaCommandFromRemote(src []string, dst string) (string, []string) {
 	metaDir := s.BackupMetaDir()
 	files := ""
