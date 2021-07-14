@@ -14,7 +14,7 @@ import (
 	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"github.com/scylladb/go-set/strset"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
-	ctx0 "github.com/vesoft-inc/nebula-br/pkg/context"
+	backupCtx "github.com/vesoft-inc/nebula-br/pkg/context"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
@@ -36,7 +36,7 @@ type Restore struct {
 	storageNodes []config.NodeInfo
 	metaNodes    []config.NodeInfo
 	metaFileName string
-	ctx          *ctx0.Context
+	ctx          *backupCtx.Context
 }
 
 type spaceInfo struct {
@@ -59,7 +59,7 @@ func NewRestore(config config.RestoreConfig, log *zap.Logger) (*Restore, error) 
 	}
 
 	log.Info("local address", zap.String("address", local_addr))
-	ctx := ctx0.NewContext(local_addr, nil)
+	ctx := backupCtx.NewContext(local_addr, nil)
 
 	backend, err := storage.NewExternalStorage(config.BackendUrl, log, config.MaxConcurrent, config.CommandArgs, ctx)
 	if err != nil {

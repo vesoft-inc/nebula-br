@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/vesoft-inc/nebula-br/pkg/config"
-	ctx0 "github.com/vesoft-inc/nebula-br/pkg/context"
+	backupCtx "github.com/vesoft-inc/nebula-br/pkg/context"
 	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
 	"github.com/vesoft-inc/nebula-br/pkg/remote"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
@@ -59,7 +59,7 @@ type Backup struct {
 	metaFileName   string
 	storageMap     map[string]idPathMap
 	metaMap        map[string]idPathMap
-	storeCtx       *ctx0.Context
+	storeCtx       *backupCtx.Context
 }
 
 func NewBackupClient(cf config.BackupConfig, log *zap.Logger) (*Backup, error) {
@@ -70,7 +70,7 @@ func NewBackupClient(cf config.BackupConfig, log *zap.Logger) (*Backup, error) {
 	}
 	log.Info("local address", zap.String("address", local_addr))
 	var (
-		storeCtx ctx0.Context
+		storeCtx backupCtx.Context
 		backend  storage.ExternalStorage
 	)
 	backend, err = storage.NewExternalStorage(cf.BackendUrl, log, cf.MaxConcurrent, cf.CommandArgs,
