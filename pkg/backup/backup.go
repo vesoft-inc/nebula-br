@@ -306,10 +306,12 @@ func (b *Backup) uploadAll(meta *meta.BackupMeta) error {
 		return err
 	}
 
-	err = b.execPreUploadMetaCommand(b.backendStorage.BackupMetaDir())
-	if err != nil {
-		b.log.Error("exec pre uploadmeta command failed", zap.Error(err))
-		return err
+	if b.backendStorage.Scheme() == storage.SCHEME_LOCAL { // NB: only local backend need this
+		err = b.execPreUploadMetaCommand(b.backendStorage.BackupMetaDir())
+		if err != nil {
+			b.log.Error("exec pre uploadmeta command failed", zap.Error(err))
+			return err
+		}
 	}
 
 	var metaFiles []string
