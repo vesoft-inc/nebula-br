@@ -69,6 +69,7 @@ func (r *Show) readMetaFile(metaName string) ([]string, error) {
 
 func (s *Show) showMetaFiles() ([][]string, error) {
 	var asciiTable [][]string
+	broken_info := []string{"", "backup is broken", "N/A", "N/A", "N/A"}
 
 	for _, d := range s.backupFiles {
 		metaFileName := d + ".meta"
@@ -78,13 +79,19 @@ func (s *Show) showMetaFiles() ([][]string, error) {
 		cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 		err := cmd.Run()
 		if err != nil {
-			s.log.Error("cmd run failed")
-			return nil, err
+			s.log.Error("cmd run failed", zap.Strings("run cmd", cmdStr), zap.Error(err))
+			broken_info[0] = d
+			broken_info[1] = broken_info[1] + ": backup meta file dowload error" // broken reason
+			asciiTable = append(asciiTable, broken_info)
+			continue
 		}
 		cmd.Wait()
 		info, err := s.readMetaFile(metaFileName)
 		if err != nil {
-			return nil, err
+			s.log.Error("parse meta file failed", zap.Error(err))
+			broken_info[0] = d
+			broken_info[1] = broken_info[1] + ": meta file parse error, " + err.Error() // broken reason
+			continue
 		}
 		asciiTable = append(asciiTable, info)
 	}
@@ -100,6 +107,7 @@ func (s *Show) ShowInfo() error {
 	}
 
 	s.backupFiles = dirs
+	s.log.Info("list backup command return", zap.Strings("backup names", s.backupFiles))
 
 	table, err := s.showMetaFiles()
 	if err != nil {
