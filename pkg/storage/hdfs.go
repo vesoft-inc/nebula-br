@@ -123,14 +123,20 @@ func (s HDFSBackedStore) RestoreStorageCommand(host string, spaceID []string, ds
 	return cmd
 }
 
-func (s HDFSBackedStore) RestoreMetaPreCommand(dst string) string {
-	//cleanup meta
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s HDFSBackedStore) RestoreMetaPreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
 
-func (s HDFSBackedStore) RestoreStoragePreCommand(dst string) string {
-	//cleanup storage
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s HDFSBackedStore) RestoreStoragePreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
+}
+
+func (s HDFSBackedStore) RestoreMetaPostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
+func (s HDFSBackedStore) RestoreStoragePostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
 }
 
 func (s HDFSBackedStore) CheckCommand() string {

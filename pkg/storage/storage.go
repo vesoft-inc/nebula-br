@@ -25,8 +25,13 @@ type ExternalStorage interface {
 	RestoreMetaFileCommand(file string, dst string) []string
 	RestoreMetaCommand(src []string, dst string) (string, []string)
 	RestoreStorageCommand(host string, spaceID []string, dst []string) []string
-	RestoreMetaPreCommand(dst string) string
-	RestoreStoragePreCommand(dst string) string
+
+	RestoreMetaPreCommand(srcDir string, bkDir string) string
+	RestoreStoragePreCommand(srcDir string, bkDir string) string
+
+	RestoreMetaPostCommand(bkDir string) string
+	RestoreStoragePostCommand(bkDir string) string
+
 	CheckCommand() string
 	ListBackupCommand() ([]string, error)
 	URI() string

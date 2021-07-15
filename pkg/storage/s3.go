@@ -95,12 +95,23 @@ func (s S3BackedStore) RestoreStorageCommand(host string, spaceID []string, dst 
 
 	return cmd
 }
-func (s S3BackedStore) RestoreMetaPreCommand(dst string) string {
-	return "rm -rf " + dst + " && mkdir -p " + dst
+
+func (s S3BackedStore) RestoreMetaPreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
-func (s S3BackedStore) RestoreStoragePreCommand(dst string) string {
-	return "rm -rf " + dst + " && mkdir -p " + dst
+
+func (s S3BackedStore) RestoreStoragePreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
+
+func (s S3BackedStore) RestoreMetaPostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
+func (s S3BackedStore) RestoreStoragePostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
 func (s S3BackedStore) URI() string {
 	return s.url
 }

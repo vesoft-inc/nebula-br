@@ -166,14 +166,21 @@ func (s LocalBackedStore) RestoreStorageCommand(host string, spaceID []string, d
 	return cmd
 }
 
-func (s LocalBackedStore) RestoreMetaPreCommand(dst string) string {
-	//cleanup meta
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s LocalBackedStore) RestoreMetaPreCommand(srcDir string, bkDir string) string {
+	// move to a backup path in case of error
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
 
-func (s LocalBackedStore) RestoreStoragePreCommand(dst string) string {
-	//cleanup storage
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s LocalBackedStore) RestoreStoragePreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
+}
+
+func (s LocalBackedStore) RestoreMetaPostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
+func (s LocalBackedStore) RestoreStoragePostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
 }
 
 func (s LocalBackedStore) CheckCommand() string {

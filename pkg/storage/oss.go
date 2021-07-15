@@ -95,12 +95,22 @@ func (s OSSBackedStore) RestoreStorageCommand(host string, spaceID []string, dst
 	return cmd
 }
 
-func (s OSSBackedStore) RestoreMetaPreCommand(dst string) string {
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s OSSBackedStore) RestoreMetaPreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
-func (s OSSBackedStore) RestoreStoragePreCommand(dst string) string {
-	return "rm -rf " + dst + " && mkdir -p " + dst
+
+func (s OSSBackedStore) RestoreStoragePreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
+
+func (s OSSBackedStore) RestoreMetaPostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
+func (s OSSBackedStore) RestoreStoragePostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
 func (s OSSBackedStore) URI() string {
 	return s.url
 }
