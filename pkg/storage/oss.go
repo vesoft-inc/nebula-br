@@ -145,8 +145,10 @@ func (s OSSBackedStore) ListBackupCommand() ([]string, error) {
 		if index == -1 {
 			return nil, fmt.Errorf("Wrong oss file name %s", line)
 		}
-
-		dirs = append(dirs, strings.TrimRight(line[len(s.url):], "/"))
+		dentry := strings.TrimRight(line[len(s.url):], "/")
+		if dentry != "" {
+			dirs = append(dirs, dentry)
+		}
 	}
 	return dirs, nil
 }
