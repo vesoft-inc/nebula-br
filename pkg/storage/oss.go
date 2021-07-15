@@ -21,6 +21,11 @@ type OSSBackedStore struct {
 }
 
 func NewOSSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string, ctx *context.Context) *OSSBackedStore {
+	if !strings.HasSuffix(url, "/") {
+		newUrl := url + "/"
+		log.Warn("original oss url not end with '/'", zap.String("origin-url", url), zap.String("new-url", newUrl))
+		url = newUrl
+	}
 	return &OSSBackedStore{url: url, log: log, maxConcurrent: strconv.Itoa(maxConcurrent), args: args}
 }
 
