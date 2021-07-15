@@ -85,3 +85,20 @@ func TestStorageCmdEmpty(t *testing.T) {
 	k1 := mkDirCommand("")
 	ast.Equal(k1, "")
 }
+
+func TestRmCmdCheck(t *testing.T) {
+	ast := assert.New(t)
+	invalidDsts := []string{
+		"/", "/abc/test /", "/data", "/some/sample/path_old_12345 ////",
+	}
+	for _, i := range invalidDsts {
+		res := sanityCheckForRM(i)
+		t.Logf("check '%s' ==> %v", i, res)
+		ast.False(res)
+	}
+
+	validDst := getBackDir("/some/data/path")
+	res := sanityCheckForRM(validDst)
+	t.Logf("check '%s' ==> %v", validDst, res)
+	ast.True(res)
+}

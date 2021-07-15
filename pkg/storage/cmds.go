@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 )
 
@@ -20,8 +21,23 @@ func mvDirCommand(from string, to string) string {
 	return ""
 }
 
+var invalidDstRegex = `(^/+$)|(\s+)`
+var allowedDstRegex = `\S+_old_[0-9]+$`
+
+func sanityCheckForRM(dst string) bool {
+	invalid, _ := regexp.Compile(invalidDstRegex)
+	if invalid.MatchString(dst) {
+		return false
+	}
+	allowed, _ := regexp.Compile(allowedDstRegex)
+	if !allowed.MatchString(dst) {
+		return false
+	}
+	return true
+}
+
 func rmDirCommand(dst string) string {
-	if dst != "" {
+	if dst != "" && sanityCheckForRM(dst) {
 		return fmt.Sprintf("rm -r %s 2>/dev/null", dst)
 	}
 	return ""

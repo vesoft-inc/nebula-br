@@ -292,6 +292,10 @@ func (r *Restore) restoreMeta(sstFiles map[string][][]byte, storageIDMap map[str
 }
 
 func remoteCommandConcurrentRunner(g *errgroup.Group, addr string, user string, cmd string, log *zap.Logger) {
+	if cmd == "" {
+		log.Warn("cmd is empty", zap.Stack("empty cmd stack trace"))
+		return
+	}
 	runner := func() error {
 		client, err := remote.NewClient(addr, user, log)
 		if err != nil {
