@@ -4,16 +4,21 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/vesoft-inc/nebula-br/pkg/version"
 )
-
-var version string = "2.0"
 
 func NewVersionCmd() *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
-		Short: "print the version of nebula br",
+		Short: "print the version of nebula br tool",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(version)
+			vstring := fmt.Sprintf(
+				`%s,V-%d.%d.%d
+   GitSha: %s
+   GitRef: %s
+please run "help" subcommand for more infomation.`, version.VerName, version.VerMajor, version.VerMinor, version.VerPatch, version.GitSha, version.GitRef)
+
+			fmt.Println(vstring)
 			return nil
 		},
 	}

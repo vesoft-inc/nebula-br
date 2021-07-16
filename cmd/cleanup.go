@@ -10,7 +10,7 @@ import (
 func NewCleanupCmd() *cobra.Command {
 	cleanupCmd := &cobra.Command{
 		Use:          "cleanup",
-		Short:        "Clean up temporary files in backup",
+		Short:        "[EXPERIMENTAL]Clean up temporary files in backup",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger, _ := log.NewLogger(config.LogPath)

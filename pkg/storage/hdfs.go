@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vesoft-inc/nebula-br/pkg/context"
 	"go.uber.org/zap"
 )
 
@@ -18,11 +19,7 @@ type HDFSBackedStore struct {
 	command    string
 }
 
-func NewHDFSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string) *HDFSBackedStore {
-	return &HDFSBackedStore{url: url, log: log, args: args}
-}
-
-func NewHDFSBackedStore(url string, log *zap.Logger, maxConcurrent int, args string) *HDFSBackedStore {
+func NewHDFSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string, ctx *context.Context) *HDFSBackedStore {
 	return &HDFSBackedStore{url: url, log: log, args: args}
 }
 
@@ -36,6 +33,9 @@ func (s *HDFSBackedStore) SetBackupName(name string) {
 
 func (s HDFSBackedStore) URI() string {
 	return s.url
+}
+func (s HDFSBackedStore) Scheme() string {
+	return SCHEME_HDFS
 }
 
 func (s HDFSBackedStore) copyCommand(src []string, dir string) string {
@@ -55,6 +55,10 @@ func (s *HDFSBackedStore) BackupPreCommand() []string {
 func (s HDFSBackedStore) BackupMetaCommand(src []string) string {
 	metaDir := s.url + "/" + "meta"
 	return s.copyCommand(src, metaDir)
+}
+
+func (s HDFSBackedStore) BackupMetaDir() string {
+	return s.url + "/" + "meta"
 }
 
 func (s HDFSBackedStore) BackupStorageCommand(src []string, host string, spaceId string) []string {
@@ -119,14 +123,20 @@ func (s HDFSBackedStore) RestoreStorageCommand(host string, spaceID []string, ds
 	return cmd
 }
 
-func (s HDFSBackedStore) RestoreMetaPreCommand(dst string) string {
-	//cleanup meta
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s HDFSBackedStore) RestoreMetaPreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
 
-func (s HDFSBackedStore) RestoreStoragePreCommand(dst string) string {
-	//cleanup storage
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s HDFSBackedStore) RestoreStoragePreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
+}
+
+func (s HDFSBackedStore) RestoreMetaPostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
+func (s HDFSBackedStore) RestoreStoragePostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
 }
 
 func (s HDFSBackedStore) CheckCommand() string {

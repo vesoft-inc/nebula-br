@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 	"go.uber.org/zap"
 )
@@ -62,4 +64,42 @@ func GetMetaFromFile(logger *zap.Logger, filename string) (*meta.BackupMeta, err
 		return nil, err
 	}
 	return m, nil
+}
+
+type BackupMetaOperator interface {
+	OprSBI(nebula.GraphSpaceID, *meta.SpaceBackupInfo)
+	OprBI(*meta.BackupInfo)
+	OprCKP(*nebula.CheckpointInfo)
+	OprPtBi(*nebula.PartitionBackupInfo)
+}
+
+type ShowBackupMeta struct {
+}
+
+func (s ShowBackupMeta) OprSBI(sid nebula.GraphSpaceID, m *meta.SpaceBackupInfo) {
+	fmt.Printf("space.id: %d .name: %s\n", sid, m.Space.SpaceName)
+}
+func (s ShowBackupMeta) OprBI(m *meta.BackupInfo) {
+	fmt.Printf("backupinfo.host: %s\n", m.Host.String())
+}
+func (s ShowBackupMeta) OprCKP(m *nebula.CheckpointInfo) {
+	fmt.Printf("ckp.path: %s\n", string(m.Path))
+}
+func (s ShowBackupMeta) OprPtBi(m *nebula.PartitionBackupInfo) {
+	for k, _ := range m.Info {
+		fmt.Printf("partid: %d\n", k)
+	}
+}
+
+func IterateBackupMeta(m map[nebula.GraphSpaceID]*meta.SpaceBackupInfo, bmo BackupMetaOperator) {
+	for k, v := range m { // k: nebula.GraphSpaceID, v: *meta.SpaceBackupInfo
+		bmo.OprSBI(k, v)
+		for _, binf := range v.Info { // bidx: int, binf: *meta.BackupInfo
+			bmo.OprBI(binf)
+			for _, ckp := range binf.Info { //ckp: *nebula.CheckpointInfo
+				bmo.OprCKP(ckp)
+				bmo.OprPtBi(ckp.PartitionInfo)
+			}
+		}
+	}
 }

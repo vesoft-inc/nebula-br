@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vesoft-inc/nebula-br/pkg/context"
 	"go.uber.org/zap"
 )
 
@@ -19,7 +20,12 @@ type OSSBackedStore struct {
 	args          string
 }
 
-func NewOSSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string) *OSSBackedStore {
+func NewOSSBackendStore(url string, log *zap.Logger, maxConcurrent int, args string, ctx *context.Context) *OSSBackedStore {
+	if !strings.HasSuffix(url, "/") {
+		newUrl := url + "/"
+		log.Warn("original oss url not end with '/'", zap.String("origin-url", url), zap.String("new-url", newUrl))
+		url = newUrl
+	}
 	return &OSSBackedStore{url: url, log: log, maxConcurrent: strconv.Itoa(maxConcurrent), args: args}
 }
 
@@ -50,6 +56,9 @@ func (s OSSBackedStore) BackupMetaCommand(src []string) string {
 	return "ossutil cp -r " + filepath.Dir(src[0]) + " " + metaDir + " " + s.args + " -j " + s.maxConcurrent
 }
 
+func (s OSSBackedStore) BackupMetaDir() string {
+	return s.url + "/" + "meta"
+}
 func (s OSSBackedStore) BackupMetaFileCommand(src string) []string {
 	if len(s.args) == 0 {
 		return []string{"ossutil", "cp", "-r", src, s.url + "/", "-j", s.maxConcurrent}
@@ -91,14 +100,28 @@ func (s OSSBackedStore) RestoreStorageCommand(host string, spaceID []string, dst
 	return cmd
 }
 
-func (s OSSBackedStore) RestoreMetaPreCommand(dst string) string {
-	return "rm -rf " + dst + " && mkdir -p " + dst
+func (s OSSBackedStore) RestoreMetaPreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
-func (s OSSBackedStore) RestoreStoragePreCommand(dst string) string {
-	return "rm -rf " + dst + " && mkdir -p " + dst
+
+func (s OSSBackedStore) RestoreStoragePreCommand(srcDir string, bkDir string) string {
+	return mvAndMkDirCommand(srcDir, bkDir)
 }
+
+func (s OSSBackedStore) RestoreMetaPostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
+func (s OSSBackedStore) RestoreStoragePostCommand(bkDir string) string {
+	return rmDirCommand(bkDir)
+}
+
 func (s OSSBackedStore) URI() string {
 	return s.url
+}
+
+func (s OSSBackedStore) Scheme() string {
+	return SCHEME_OSS
 }
 
 func (s OSSBackedStore) CheckCommand() string {
@@ -122,8 +145,10 @@ func (s OSSBackedStore) ListBackupCommand() ([]string, error) {
 		if index == -1 {
 			return nil, fmt.Errorf("Wrong oss file name %s", line)
 		}
-
-		dirs = append(dirs, strings.TrimRight(line[len(s.url):], "/"))
+		dentry := strings.TrimRight(line[len(s.url):], "/")
+		if dentry != "" {
+			dirs = append(dirs, dentry)
+		}
 	}
 	return dirs, nil
 }
