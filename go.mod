@@ -1,17 +1,18 @@
 module github.com/vesoft-inc/nebula-br
 
-go 1.14
+go 1.16
+
+replace github.com/vesoft-inc/nebula-agent => /home/pengwei.song/code/nebula-agent
 
 require (
-	github.com/facebook/fbthrift v0.31.1-0.20210223140454-614a73a42488
+	github.com/facebook/fbthrift v0.31.1-0.20211129061412-801ed7f9f295
+	github.com/google/uuid v1.3.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pkg/errors v0.9.1 // indirect
-	github.com/scylladb/go-set v1.0.2
+	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.1
-	github.com/stretchr/testify v1.6.1
-	github.com/vesoft-inc/nebula-go/v2 v2.0.0-20210608032721-3e7bf449d35f
-	go.uber.org/zap v1.10.0
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58
+	github.com/spf13/pflag v1.0.5
+	github.com/stretchr/testify v1.7.0
+	github.com/vesoft-inc/nebula-agent v0.0.0-20211026035604-1fdf4f481d68
+	github.com/vesoft-inc/nebula-go/v2 v2.5.2-0.20211228055601-b5b11a36e453
+	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881 // indirect
 )

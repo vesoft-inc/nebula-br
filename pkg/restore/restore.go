@@ -2,791 +2,595 @@ package restore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	_ "os"
-	"os/exec"
+	"path/filepath"
+	"reflect"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
-	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
-	"github.com/scylladb/go-set/strset"
+	log "github.com/sirupsen/logrus"
+	"github.com/vesoft-inc/nebula-agent/pkg/storage"
+	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
-	backupCtx "github.com/vesoft-inc/nebula-br/pkg/context"
-	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
-	"github.com/vesoft-inc/nebula-br/pkg/remote"
-	"github.com/vesoft-inc/nebula-br/pkg/storage"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
 
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
-
-	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
+func GetBackupSuffix() string {
+	return fmt.Sprintf("_old_%d", time.Now().Unix())
+}
+
 type Restore struct {
-	config       config.RestoreConfig
-	backend      storage.ExternalStorage
-	log          *zap.Logger
-	metaLeader   string
-	client       *metaclient.MetaClient
-	storageNodes []config.NodeInfo
-	metaNodes    []config.NodeInfo
-	metaFileName string
-	ctx          *backupCtx.Context
-	backSuffix   string
+	ctx      context.Context
+	cfg      *config.RestoreConfig
+	sto      storage.ExternalStorage
+	hosts    *utils.NebulaHosts
+	meta     *clients.NebulaMeta
+	agentMgr *clients.AgentManager
+
+	rootUri    string
+	backupName string
+	backSuffix string
 }
 
-type spaceInfo struct {
-	spaceID nebula.GraphSpaceID
-	cpDir   string
-}
-
-var LeaderNotFoundError = errors.New("not found leader")
-var restoreFailed = errors.New("restore failed")
-var listClusterFailed = errors.New("list cluster failed")
-var spaceNotMatching = errors.New("Space mismatch")
-var dropSpaceFailed = errors.New("drop space failed")
-var getSpaceFailed = errors.New("get space failed")
-
-func NewRestore(config config.RestoreConfig, log *zap.Logger) (*Restore, error) {
-	local_addr, err := remote.GetAddresstoReachRemote(strings.Split(config.Meta, ":")[0], config.User, log)
+func NewRestore(ctx context.Context, cfg *config.RestoreConfig) (*Restore, error) {
+	sto, err := storage.New(cfg.Backend)
 	if err != nil {
-		log.Error("get local address failed", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("create storage failed: %w", err)
 	}
 
-	log.Info("local address", zap.String("address", local_addr))
-	ctx := backupCtx.NewContext(local_addr, nil)
-
-	backend, err := storage.NewExternalStorage(config.BackendUrl, log, config.MaxConcurrent, config.CommandArgs, ctx)
+	client, err := clients.NewMeta(cfg.MetaAddr)
 	if err != nil {
-		log.Error("new external storage failed", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("create meta client failed: %w", err)
 	}
-	backend.SetBackupName(config.BackupName)
-	return &Restore{config: config, log: log, backend: backend, ctx: ctx}, nil
+
+	listRes, err := client.ListCluster()
+	if err != nil {
+		return nil, fmt.Errorf("list cluster failed: %w", err)
+	}
+	hosts := &utils.NebulaHosts{}
+	err = hosts.LoadFrom(listRes)
+	if err != nil {
+		return nil, fmt.Errorf("parse cluster response failed: %w", err)
+	}
+
+	return &Restore{
+		ctx:        ctx,
+		cfg:        cfg,
+		sto:        sto,
+		meta:       client,
+		hosts:      hosts,
+		agentMgr:   clients.NewAgentManager(ctx, hosts),
+		rootUri:    cfg.Backend.Uri(),
+		backupName: cfg.BackupName,
+	}, nil
 }
 
 func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
-	s := strset.New()
-	maxInfoLen := 0
-	for _, v := range info {
-		for _, i := range v.Info {
-			s.Add(metaclient.HostaddrToString(i.Host))
-			if len(i.Info) > maxInfoLen {
-				maxInfoLen = len(i.Info)
+	var (
+		backupPaths    = make(map[int]int)
+		backupStorages = make(map[string]bool)
+	)
+
+	for _, space := range info {
+		for _, host := range space.GetHostBackups() {
+			if _, ok := backupStorages[utils.StringifyAddr(host.GetHost())]; !ok {
+				pathCnt := len(host.GetCheckpoints())
+				backupPaths[pathCnt]++
 			}
+			backupStorages[utils.StringifyAddr(host.GetHost())] = true
 		}
 	}
-
-	if s.Size() > len(r.storageNodes) {
-		return fmt.Errorf("The physical topology of storage must be consistent")
+	if r.hosts.StorageCount() != len(backupStorages) {
+		return fmt.Errorf("the physical topology of storage count must be consistent, cluster: %d, backup: %d",
+			r.hosts.StorageCount(), len(backupStorages))
 	}
 
-	if maxInfoLen != len(r.storageNodes[0].DataDir) {
-		return fmt.Errorf("The number of data directories for storage must be the same")
+	clusterPaths := r.hosts.StoragePaths()
+	if !reflect.DeepEqual(backupPaths, clusterPaths) {
+		log.WithField("backup", backupPaths).WithField("cluster", clusterPaths).Error("Path distribution is not consistent")
+		return fmt.Errorf("the physical topology is not consistent, path distribution is not consistent")
 	}
 
 	return nil
 }
 
-func (r *Restore) check() error {
-	nodes := append(r.metaNodes, r.storageNodes...)
-	command := r.backend.CheckCommand()
-	return remote.CheckCommand(command, nodes, r.log)
-}
-
-func (r *Restore) downloadMetaFile() error {
-	r.metaFileName = r.config.BackupName + ".meta"
-	cmdStr := r.backend.RestoreMetaFileCommand(r.metaFileName, "/tmp/")
-	r.log.Info("download metafile", zap.Strings("cmd", cmdStr))
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-	cmd.Wait()
-
-	return nil
-}
-
-func (r *Restore) restoreMetaFile() (*meta.BackupMeta, error) {
-	filename := "/tmp/" + r.metaFileName // downloaded file before
-	m, err := utils.GetMetaFromFile(r.log, filename)
-	if m == nil {
-		r.log.Error("failed to get meta", zap.String("file", filename),
-			zap.Error(err))
-	}
-	return m, err
-}
-
-func (r *Restore) downloadMeta(g *errgroup.Group, file []string) map[string][][]byte {
-	sstFiles := make(map[string][][]byte)
-	for _, n := range r.metaNodes {
-		ipAddr := strings.Split(n.Addrs, ":")
-		r.ctx.RemoteAddr = ipAddr[0]
-
-		cmd, files := r.backend.RestoreMetaCommand(file, n.DataDir[0])
-
-		func(addr string, user string, cmd string, log *zap.Logger) {
-			g.Go(func() error {
-				client, err := remote.NewClient(addr, user, log)
-				if err != nil {
-					return err
-				}
-				defer client.Close()
-				return client.ExecCommandBySSH(cmd)
-			})
-		}(ipAddr[0], n.User, cmd, r.log)
-		var byteFile [][]byte
-		for _, f := range files {
-			byteFile = append(byteFile, []byte(f))
+func (r *Restore) checkAndDropSpaces(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
+	for sid, backup := range info {
+		resp, err := r.meta.GetSpace(backup.Space.SpaceName)
+		if err != nil {
+			return fmt.Errorf("get info of space %s failed: %w", string(backup.Space.SpaceName), err)
 		}
-		sstFiles[n.Addrs] = byteFile
-	}
-	return sstFiles
-}
 
-func (r *Restore) downloadStorage(g *errgroup.Group, info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) map[string]string {
-	idMap := make(map[string][]string)
-	var cpHosts []string
-	for gid, bInfo := range info {
-		for _, i := range bInfo.Info {
-			idStr := strconv.FormatInt(int64(gid), 10)
-			if idMap[metaclient.HostaddrToString(i.Host)] == nil {
-				cpHosts = append(cpHosts, metaclient.HostaddrToString(i.Host))
+		if resp.GetCode() == nebula.ErrorCode_E_SPACE_NOT_FOUND {
+			continue
+		}
+		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
+			if resp.Item.SpaceID != sid {
+				return fmt.Errorf("space to resotre already exist and the space id is not consistent, name: %s, backup: %d, cluster: %d",
+					string(backup.Space.SpaceName), sid, resp.Item.SpaceID)
 			}
-			idMap[metaclient.HostaddrToString(i.Host)] = append(idMap[metaclient.HostaddrToString(i.Host)], idStr)
+		} else {
+			return fmt.Errorf("get info of space %s failed: %s",
+				string(backup.Space.SpaceName), resp.GetCode().String())
 		}
 	}
 
-	for i, osvr := range cpHosts {
-		r.log.Sugar().Infof(
-			"storage server moved from old: %s to new: %s, contained graphspaceid: %v",
-			osvr,
-			r.storageNodes[i].Addrs,
-			idMap[osvr])
+	for _, backup := range info {
+		err := r.meta.DropSpace(backup.Space.SpaceName, true)
+		if err != nil {
+			return fmt.Errorf("drop space %s failed: %w", string(backup.Space.SpaceName), err)
+		}
 	}
 
-	sort.Strings(cpHosts)
-	storageIPmap := make(map[string]string)
-	for i, ip := range cpHosts {
-		ids := idMap[ip]
-		sNode := r.storageNodes[i]
-		r.log.Info("download", zap.String("ip", ip), zap.String("storage", sNode.Addrs))
-		var nebulaDirs []string
-		for _, d := range sNode.DataDir {
-			nebulaDirs = append(nebulaDirs, d+"/nebula")
-		}
-		r.ctx.RemoteAddr = ip
-		cmds := r.backend.RestoreStorageCommand(ip, ids, nebulaDirs)
-		addr := strings.Split(sNode.Addrs, ":")
-		if ip != sNode.Addrs {
-			storageIPmap[ip] = sNode.Addrs
-		}
-		for _, cmd := range cmds {
-			func(addr string, user string, cmd string, log *zap.Logger) {
-				g.Go(func() error {
-					client, err := remote.NewClient(addr, user, log)
-					if err != nil {
-						return err
-					}
-					defer client.Close()
-					return client.ExecCommandBySSH(cmd)
-				})
-			}(addr[0], sNode.User, cmd, r.log)
-		}
-	}
-	return storageIPmap
+	return nil
 }
 
-func stringToHostAddr(host string) (*nebula.HostAddr, error) {
-	ipAddr := strings.Split(host, ":")
-	port, err := strconv.ParseInt(ipAddr[1], 10, 32)
-	if err != nil {
-		return nil, err
-	}
-	return &nebula.HostAddr{ipAddr[0], nebula.Port(port)}, nil
-}
+func (r *Restore) backupOriginal(allspaces bool) error {
+	r.backSuffix = GetBackupSuffix()
 
-func sendRestoreMeta(addr string, files [][]byte, hostMap []*meta.HostPair, log *zap.Logger) error {
-
-	// retry 3 times if restore failed
-	count := 3
-	for {
-		if count == 0 {
-			return restoreFailed
-		}
-		client := metaclient.NewMetaClient(log)
-		err := client.Open(addr)
+	for _, s := range r.hosts.GetStorages() {
+		agent, err := r.agentMgr.GetAgentFor(s.GetAddr())
 		if err != nil {
-			log.Error("open meta failed", zap.Error(err), zap.String("addr", addr))
-			time.Sleep(time.Second * 2)
-			continue
-		}
-		defer client.Close()
-
-		restoreReq := meta.NewRestoreMetaReq()
-		restoreReq.Hosts = hostMap
-		restoreReq.Files = files
-
-		resp, err := client.RestoreMeta(restoreReq)
-		if err != nil {
-			// maybe we should retry
-			log.Error("restore failed", zap.Error(err), zap.String("addr", addr))
-			time.Sleep(time.Second * 2)
-			count--
-			continue
+			return fmt.Errorf("get agent for storaged %s failed: %w",
+				utils.StringifyAddr(s.GetAddr()), err)
 		}
 
-		if resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
-			log.Error("restore failed", zap.String("error code", resp.GetCode().String()), zap.String("addr", addr))
-			time.Sleep(time.Second * 2)
-			count--
-			continue
+		logger := log.WithField("addr", utils.StringifyAddr(s.GetAddr()))
+		for _, d := range s.Dir.Data {
+			opath := filepath.Join(string(d), "nebula")
+			bpath := fmt.Sprintf("%s%s", opath, r.backSuffix)
+			req := &pb.MoveDirRequest{
+				SrcPath: opath,
+				DstPath: bpath,
+			}
+			_, err = agent.MoveDir(req)
+			if err != nil {
+				return fmt.Errorf("move dir from %s to %s failed: %w", opath, bpath, err)
+			}
+
+			logger.WithField("origin path", opath).
+				WithField("backup path", bpath).
+				Info("Backup origin storage data path successfully")
 		}
-		log.Info("restore succeeded", zap.String("addr", addr))
-		return nil
 	}
-}
 
-func (r *Restore) restoreMeta(sstFiles map[string][][]byte, storageIDMap map[string]string) error {
-	r.log.Info("restoreMeta")
-	var hostMap []*meta.HostPair
+	if allspaces {
+		for _, m := range r.hosts.GetMetas() {
+			agent, err := r.agentMgr.GetAgentFor(m.GetAddr())
+			if err != nil {
+				return fmt.Errorf("get agent for metad %s failed: %w",
+					utils.StringifyAddr(m.GetAddr()), err)
+			}
 
-	for k, v := range storageIDMap {
-		fromAddr, err := stringToHostAddr(k)
-		if err != nil {
-			return err
+			if len(m.Dir.Data) != 1 {
+				return fmt.Errorf("meta service: %s should only have one data dir, but %d",
+					utils.StringifyAddr(m.GetAddr()), len(m.Dir.Data))
+			}
+
+			opath := fmt.Sprintf("%s/nebula", string(m.Dir.Data[0]))
+			bpath := fmt.Sprintf("%s%s", opath, r.backSuffix)
+
+			req := &pb.MoveDirRequest{
+				SrcPath: opath,
+				DstPath: bpath,
+			}
+			_, err = agent.MoveDir(req)
+			if err != nil {
+				return fmt.Errorf("move dir from %s to %s failed: %w", opath, bpath, err)
+			}
+
+			log.WithField("addr", utils.StringifyAddr(m.GetAddr())).
+				WithField("origin path", opath).
+				WithField("backup path", bpath).
+				Info("Backup origin meta data path successfully")
 		}
-		toAddr, err := stringToHostAddr(v)
-		if err != nil {
-			return err
-		}
 
-		r.log.Info("restoreMeta host mapping", zap.String("fromAddr", fromAddr.String()), zap.String("toAddr", toAddr.String()))
-		pair := &meta.HostPair{fromAddr, toAddr}
-		hostMap = append(hostMap, pair)
-	}
-	r.log.Info("restoreMeta2", zap.Int("metaNode len:", len(r.metaNodes)))
-
-	g, _ := errgroup.WithContext(context.Background())
-	for _, n := range r.metaNodes {
-		r.log.Info("will restore meta", zap.String("addr", n.Addrs))
-		addr := n.Addrs
-		func(addr string, files [][]byte, hostMap []*meta.HostPair, log *zap.Logger) {
-			g.Go(func() error { return sendRestoreMeta(addr, files, hostMap, r.log) })
-		}(addr, sstFiles[n.Addrs], hostMap, r.log)
-	}
-	r.log.Info("restoreMeta3")
-
-	err := g.Wait()
-	if err != nil {
-		return err
 	}
 	return nil
 }
 
-func remoteCommandConcurrentRunner(g *errgroup.Group, addr string, user string, cmd string, log *zap.Logger) {
-	if cmd == "" {
-		log.Warn("cmd is empty", zap.Stack("empty cmd stack trace"))
-		return
+func (r *Restore) downloadMeta() error {
+	// {backupRoot}/{backupName}/meta/*.sst
+	externalUri, _ := utils.UriJoin(r.rootUri, r.backupName, "meta")
+	backend, err := r.sto.GetDir(r.ctx, externalUri)
+	if err != nil {
+		return fmt.Errorf("get storage backend for %s failed: %w", externalUri, err)
 	}
-	runner := func() error {
-		client, err := remote.NewClient(addr, user, log)
+
+	// download meta backup files to every meta service
+	for _, s := range r.hosts.GetMetas() {
+		agent, err := r.agentMgr.GetAgentFor(s.GetAddr())
 		if err != nil {
-			return err
+			return fmt.Errorf("get agent for metad %s failed: %w",
+				utils.StringifyAddr(s.GetAddr()), err)
 		}
-		defer client.Close()
-		return client.ExecCommandBySSH(cmd)
-	}
-	g.Go(runner)
-}
 
-func (r *Restore) cleanupOriginalBackup() error {
-	g, _ := errgroup.WithContext(context.Background())
-	for _, node := range r.storageNodes {
-		for _, d := range node.DataDir {
-			orgpath := d + "/nebula"
-			bakpath := orgpath + r.backSuffix
-
-			cmd := r.backend.RestoreStoragePostCommand(bakpath)
-			ipAddr := strings.Split(node.Addrs, ":")[0]
-			remoteCommandConcurrentRunner(g, ipAddr, node.User, cmd, r.log)
+		// meta kv data path: {nebulaData}/meta
+		localDir := string(s.Dir.Data[0])
+		req := &pb.DownloadFileRequest{
+			SourceBackend: backend,
+			TargetPath:    localDir,
+			Recursively:   true,
+		}
+		_, err = agent.DownloadFile(req)
+		if err != nil {
+			return fmt.Errorf("download meta files from %s to %s failed: %w", externalUri, localDir, err)
 		}
 	}
 
-	for _, node := range r.metaNodes {
-		for _, d := range node.DataDir {
-			orgpath := d + "/nebula"
-			bakpath := orgpath + r.backSuffix
-
-			cmd := r.backend.RestoreMetaPostCommand(bakpath)
-			ipAddr := strings.Split(node.Addrs, ":")[0]
-			remoteCommandConcurrentRunner(g, ipAddr, node.User, cmd, r.log)
-		}
-	}
-	err := g.Wait()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
-func (r *Restore) backupOriginal() ([]string, error) {
-	bak_resources_urls := []string{}
-	g, _ := errgroup.WithContext(context.Background())
+func (r *Restore) downloadStorage(backup *meta.BackupMeta) (map[string]string, error) {
+	// TODO(spw): only support same ip now, by sorting address
+	// could match by label(or id) in the future, now suppose the label is ip.
 
-	for _, node := range r.storageNodes {
-		for _, d := range node.DataDir {
-			orgpath := d + "/nebula"
-			bakpath := orgpath + r.backSuffix
+	// current cluster storage serivce list
+	currList := r.hosts.GetStorages()
+	sort.Slice(currList, func(i, j int) bool {
+		if currList[i].Addr.Host != currList[j].Addr.Host {
+			return currList[i].Addr.Host < currList[j].Addr.Host
+		}
+		return currList[i].Addr.Port < currList[j].Addr.Port
+	})
 
-			cmd := r.backend.RestoreStoragePreCommand(orgpath, bakpath)
-			ipAddr := strings.Split(node.Addrs, ":")[0]
-			remoteCommandConcurrentRunner(g, ipAddr, node.User, cmd, r.log)
-			bak_resources_urls = append(bak_resources_urls, "STORAGE_"+ipAddr+":"+bakpath)
+	// previous backup storage service list
+	prevMap := make(map[string]*nebula.HostAddr)
+	for _, sb := range backup.SpaceBackups {
+		for _, hb := range sb.HostBackups {
+			prevMap[utils.StringifyAddr(hb.GetHost())] = hb.GetHost()
 		}
 	}
-
-	for _, node := range r.metaNodes {
-		for _, d := range node.DataDir {
-			orgpath := d + "/nebula"
-			bakpath := orgpath + r.backSuffix
-
-			cmd := r.backend.RestoreMetaPreCommand(orgpath, bakpath)
-			ipAddr := strings.Split(node.Addrs, ":")[0]
-			remoteCommandConcurrentRunner(g, ipAddr, node.User, cmd, r.log)
-			bak_resources_urls = append(bak_resources_urls, "META_"+ipAddr+":"+bakpath)
+	prevList := make([]*nebula.HostAddr, 0, len(prevMap))
+	for _, addr := range prevMap {
+		prevList = append(prevList, addr)
+	}
+	sort.Slice(prevList, func(i, j int) bool {
+		if prevList[i].Host != prevList[j].Host {
+			return prevList[i].Host < prevList[j].Host
 		}
-	}
-	err := g.Wait()
-	if err != nil {
-		return []string{}, err
-	}
-	return bak_resources_urls, nil
-}
+		return prevList[i].Port < prevList[j].Port
+	})
 
-func (r *Restore) stopCluster() error {
-	g, _ := errgroup.WithContext(context.Background())
-	for _, node := range r.storageNodes {
-		cmd := "cd " + node.RootDir + " && scripts/nebula.service stop storaged"
-		ipAddr := strings.Split(node.Addrs, ":")[0]
+	// download from previous to current one host by another
+	serviceMap := make(map[string]string)
+	// {backupRoot}/{backupName}/data/{addr}/data{0..n}/
+	storageUri, _ := utils.UriJoin(r.rootUri, r.backupName, "data")
+	for idx, s := range currList {
+		agent, err := r.agentMgr.GetAgentFor(s.GetAddr())
+		if err != nil {
+			return nil, fmt.Errorf("get agent for storaged %s failed: %w",
+				utils.StringifyAddr(s.GetAddr()), err)
+		}
 
-		func(addr string, user string, cmd string, log *zap.Logger) {
-			g.Go(func() error {
-				client, err := remote.NewClient(addr, user, log)
-				if err != nil {
-					return err
-				}
-				defer client.Close()
-				return client.ExecCommandBySSH(cmd)
-			})
-		}(ipAddr, node.User, cmd, r.log)
-	}
+		logger := log.WithField("addr", utils.StringifyAddr(s.GetAddr()))
+		for i, d := range s.Dir.Data {
+			// {backupRoot}/{backupName}/data/{addr}/data{0..n}/
+			externalUri, _ := utils.UriJoin(storageUri, utils.StringifyAddr(prevList[idx]), fmt.Sprintf("data%d", i))
+			backend, err := r.sto.GetDir(r.ctx, externalUri)
+			if err != nil {
+				return nil, fmt.Errorf("get storage backend for %s failed: %w", externalUri, err)
+			}
+			// {nebulaDataPath}/storage/nebula
+			localDir := filepath.Join(string(d), "nebula")
 
-	for _, node := range r.metaNodes {
-		cmd := "cd " + node.RootDir + " && scripts/nebula.service stop metad"
-		ipAddr := strings.Split(node.Addrs, ":")[0]
-		func(addr string, user string, cmd string, log *zap.Logger) {
-			g.Go(func() error {
-				client, err := remote.NewClient(addr, user, log)
-				if err != nil {
-					return err
-				}
-				defer client.Close()
-				return client.ExecCommandBySSH(cmd)
-			})
-		}(ipAddr, node.User, cmd, r.log)
-	}
+			req := &pb.DownloadFileRequest{
+				SourceBackend: backend,
+				TargetPath:    localDir,
+				Recursively:   true,
+			}
 
-	err := g.Wait()
-	if err != nil {
-		return err
+			_, err = agent.DownloadFile(req)
+			if err != nil {
+				return nil, fmt.Errorf("download from %s to %s:%s failed: %w",
+					externalUri, localDir, utils.StringifyAddr(s.GetAddr()), err)
+			}
+			logger.WithField("external", externalUri).
+				WithField("local", localDir).Info("Download storage data successfully")
+		}
+
+		serviceMap[utils.StringifyAddr(prevList[idx])] = utils.StringifyAddr(s.GetAddr())
 	}
 
-	return nil
+	return serviceMap, nil
 }
 
 func (r *Restore) startMetaService() error {
-	g, _ := errgroup.WithContext(context.Background())
-	for _, node := range r.metaNodes {
-		cmd := "cd " + node.RootDir + " && scripts/nebula.service start metad &>/dev/null &"
-		ipAddr := strings.Split(node.Addrs, ":")[0]
-		func(addr string, user string, cmd string, log *zap.Logger) {
-			g.Go(func() error {
-				client, err := remote.NewClient(addr, user, log)
-				if err != nil {
-					return err
-				}
-				defer client.Close()
-				return client.ExecCommandBySSH(cmd)
-			})
-		}(ipAddr, node.User, cmd, r.log)
+	for _, meta := range r.hosts.GetMetas() {
+		agent, err := r.agentMgr.GetAgentFor(meta.GetAddr())
+		if err != nil {
+			return fmt.Errorf("get agent for metad %s failed: %w",
+				utils.StringifyAddr(meta.GetAddr()), err)
+		}
+
+		req := &pb.StartServiceRequest{
+			Role: pb.ServiceRole_META,
+			Dir:  string(meta.Dir.Root),
+		}
+
+		_, err = agent.StartService(req)
+		if err != nil {
+			return fmt.Errorf("start meta service %s by agent failed: %w",
+				utils.StringifyAddr(meta.GetAddr()), err)
+		}
+		log.WithField("addr", utils.StringifyAddr(meta.GetAddr())).
+			Info("Start meta service successfully")
 	}
 
-	err := g.Wait()
-	if err != nil {
-		return err
+	return nil
+}
+
+func (r *Restore) stopCluster() error {
+	rootDirs := r.hosts.GetRootDirs()
+	for _, agentAddr := range r.hosts.GetAgents() {
+		agent, err := r.agentMgr.GetAgent(agentAddr)
+		if err != nil {
+			return fmt.Errorf("get agent %s failed: %w", utils.StringifyAddr(agentAddr), err)
+		}
+
+		dirs, ok := rootDirs[agentAddr.Host]
+		if !ok {
+			log.WithField("host", agentAddr.Host).Info("Does not find nebula root dirs in this host")
+			continue
+		}
+
+		logger := log.WithField("host", agentAddr.Host)
+		for _, d := range dirs {
+			req := &pb.StopServiceRequest{
+				Role: pb.ServiceRole_ALL,
+				Dir:  d.Dir,
+			}
+			logger.WithField("dir", d.Dir).Info("Stop services")
+			_, err := agent.StopService(req)
+			if err != nil {
+				return fmt.Errorf("stop services in host %s failed: %w", agentAddr.Host, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Restore) restoreMeta(backup *meta.BackupMeta, storageMap map[string]string) error {
+	addrMap := make([]*meta.HostPair, 0, len(storageMap))
+	for from, to := range storageMap {
+		fromaddr, err := utils.ParseAddr(from)
+		if err != nil {
+			return fmt.Errorf("parse %s failed: %w", from, err)
+		}
+		toaddr, err := utils.ParseAddr(to)
+		if err != nil {
+			return fmt.Errorf("parse %s failed: %w", to, err)
+		}
+
+		addrMap = append(addrMap, &meta.HostPair{FromHost: fromaddr, ToHost: toaddr})
+	}
+
+	for _, meta := range r.hosts.GetMetas() {
+		metaSsts := make([]string, 0, len(backup.GetMetaFiles()))
+		for _, f := range backup.GetMetaFiles() {
+			// TODO(spw): data folder end with '/'?
+			sstPath := fmt.Sprintf("%s/%s", string(meta.Dir.Data[0]), string(f))
+			metaSsts = append(metaSsts, sstPath)
+		}
+
+		err := r.meta.RestoreMeta(meta.GetAddr(), addrMap, metaSsts)
+		if err != nil {
+			return fmt.Errorf("restore meta service %s failed: %w",
+				utils.StringifyAddr(meta.GetAddr()), err)
+		}
+
+		log.WithField("addr", utils.StringifyAddr(meta.GetAddr())).
+			Info("restore backup in this metad successfully")
 	}
 
 	return nil
 }
 
 func (r *Restore) startStorageService() error {
-	g, _ := errgroup.WithContext(context.Background())
-	for _, node := range r.storageNodes {
-		cmd := "cd " + node.RootDir + " && scripts/nebula.service start storaged &>/dev/null &"
-		ipAddr := strings.Split(node.Addrs, ":")[0]
-		func(addr string, user string, cmd string, log *zap.Logger) {
-			g.Go(func() error {
-				client, err := remote.NewClient(addr, user, log)
-				if err != nil {
-					return err
-				}
-				defer client.Close()
-				return client.ExecCommandBySSH(cmd)
-			})
-		}(ipAddr, node.User, cmd, r.log)
-	}
+	for _, s := range r.hosts.GetStorages() {
+		agent, err := r.agentMgr.GetAgentFor(s.GetAddr())
+		if err != nil {
+			return fmt.Errorf("get agent for storaged %s failed: %w",
+				utils.StringifyAddr(s.GetAddr()), err)
+		}
 
-	err := g.Wait()
-	if err != nil {
-		return err
+		req := &pb.StartServiceRequest{
+			Role: pb.ServiceRole_STORAGE,
+			Dir:  string(s.GetDir().GetRoot()),
+		}
+		_, err = agent.StartService(req)
+		if err != nil {
+			return fmt.Errorf("start storaged by agent failed: %w", err)
+		}
+		log.WithField("addr", utils.StringifyAddr(s.GetAddr())).
+			Info("Start storaged by agent successfully")
 	}
 
 	return nil
 }
 
-func (r *Restore) listCluster() (*meta.ListClusterInfoResp, error) {
-	r.metaLeader = r.config.Meta
-
-	for {
-		client := metaclient.NewMetaClient(r.log)
-		err := client.Open(r.metaLeader)
+func (r *Restore) startGraphService() error {
+	for _, s := range r.hosts.GetGraphs() {
+		agent, err := r.agentMgr.GetAgentFor(s.GetAddr())
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("get agent for graphd %s failed: %w",
+				utils.StringifyAddr(s.GetAddr()), err)
 		}
 
-		listReq := meta.NewListClusterInfoReq()
-		defer client.Close()
-
-		resp, err := client.ListCluster(listReq)
+		req := &pb.StartServiceRequest{
+			Role: pb.ServiceRole_GRAPH,
+			Dir:  string(s.GetDir().GetRoot()),
+		}
+		_, err = agent.StartService(req)
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("start graphd by agent failed: %w", err)
 		}
-
-		if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
-			r.log.Error("list cluster failed", zap.String("error code", resp.GetCode().String()))
-			return nil, listClusterFailed
-		}
-
-		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
-			return resp, nil
-		}
-
-		leader := resp.GetLeader()
-		if leader == meta.ExecResp_Leader_DEFAULT {
-			return nil, LeaderNotFoundError
-		}
-
-		r.log.Info("leader changed", zap.String("leader", leader.String()))
-		r.metaLeader = metaclient.HostaddrToString(leader)
+		log.WithField("addr", utils.StringifyAddr(s.GetAddr())).
+			Info("Start graphd by agent successfully")
 	}
+
+	return nil
 }
 
-func (r *Restore) getMetaInfo(hosts []*nebula.HostAddr) ([]config.NodeInfo, error) {
-
-	var info []config.NodeInfo
-
-	if len(hosts) == 0 {
-		r.log.Warn("meta host list is nil")
-		return nil, listClusterFailed
-	}
-
-	for _, v := range hosts {
-		client := metaclient.NewMetaClient(r.log)
-		addr := metaclient.HostaddrToString(v)
-		r.log.Info("will get meta info", zap.String("addr", addr))
-		err := client.Open(addr)
+func (r *Restore) cleanupOriginalData() error {
+	for _, m := range r.hosts.GetMetas() {
+		agent, err := r.agentMgr.GetAgentFor(m.GetAddr())
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("get agent for metad %s failed: %w",
+				utils.StringifyAddr(m.GetAddr()), err)
 		}
 
-		dirReq := meta.NewGetMetaDirInfoReq()
-		defer client.Close()
-
-		resp, err := client.ListMetaDir(dirReq)
+		req := &pb.RemoveDirRequest{
+			Path: fmt.Sprintf("%s/nebula%s", string(m.Dir.Data[0]), r.backSuffix),
+		}
+		_, err = agent.RemoveDir(req)
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("remove meta data dir %s by agent failed: %w", req.Path, err)
 		}
-
-		if resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
-			r.log.Error("list cluster failed", zap.String("error code", resp.GetCode().String()))
-			return nil, listClusterFailed
-		}
-		var datadir []string
-
-		for _, d := range resp.Dir.Data {
-			datadir = append(datadir, string(d[0:]))
-		}
-		info = append(info, config.NodeInfo{Addrs: metaclient.HostaddrToString(v),
-			User: r.config.User, RootDir: string(resp.Dir.Root[0:]), DataDir: datadir})
-	}
-	return info, nil
-}
-
-func (r *Restore) setStorageInfo(resp *meta.ListClusterInfoResp) {
-	for _, v := range resp.StorageServers {
-		var datadir []string
-
-		for _, d := range v.Dir.Data {
-			datadir = append(datadir, string(d[0:]))
-		}
-
-		r.storageNodes = append(r.storageNodes, config.NodeInfo{Addrs: metaclient.HostaddrToString(v.Host),
-			User: r.config.User, RootDir: string(v.Dir.Root[0:]), DataDir: datadir})
+		log.WithField("addr", utils.StringifyAddr(m.GetAddr())).
+			WithField("path", req.Path).Info("Remove meta origin data successfully.")
 	}
 
-	sort.SliceStable(r.storageNodes, func(i, j int) bool {
-		return r.storageNodes[i].Addrs < r.storageNodes[j].Addrs
-	})
-}
+	for _, s := range r.hosts.GetStorages() {
+		agent, err := r.agentMgr.GetAgentFor(s.GetAddr())
+		if err != nil {
+			return fmt.Errorf("get agent for storaged %s failed: %w",
+				utils.StringifyAddr(s.GetAddr()), err)
+		}
 
-func (r *Restore) checkSpace(m *meta.BackupMeta) error {
-	var client *metaclient.MetaClient
-	reCreate := true
-
-	for gid, info := range m.GetBackupInfo() {
-		for {
-			if reCreate {
-				client = metaclient.NewMetaClient(r.log)
-				err := client.Open(r.metaLeader)
-				if err != nil {
-					return err
-				}
+		logger := log.WithField("addr", utils.StringifyAddr(s.GetAddr()))
+		for _, dir := range s.Dir.Data {
+			req := &pb.RemoveDirRequest{
+				Path: fmt.Sprintf("%s/nebula%s", string(dir), r.backSuffix),
 			}
-			spaceReq := meta.NewGetSpaceReq()
-			defer client.Close()
-			spaceReq.SpaceName = info.Space.SpaceName
-
-			resp, err := client.GetSpaceInfo(spaceReq)
+			_, err = agent.RemoveDir(req)
 			if err != nil {
-				return err
+				return fmt.Errorf("remove storage data dir %s by agent failed: %w", req.Path, err)
 			}
-
-			if resp.GetCode() == nebula.ErrorCode_E_SPACE_NOT_FOUND {
-				reCreate = false
-				break
-			}
-
-			if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
-				r.log.Error("get space failed", zap.String("error code", resp.GetCode().String()))
-				return getSpaceFailed
-			}
-
-			if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
-				if resp.Item.SpaceID != gid {
-					r.log.Error("space not matching", zap.String("spacename", string(info.Space.SpaceName[0:])),
-						zap.Int32("gid", int32(gid)), zap.Int32("gid in server", int32(resp.Item.SpaceID)))
-					return spaceNotMatching
-				}
-				reCreate = false
-				break
-			}
-
-			leader := resp.GetLeader()
-			if leader == meta.ExecResp_Leader_DEFAULT {
-				return LeaderNotFoundError
-			}
-
-			r.log.Info("leader changed", zap.String("leader", leader.String()))
-			r.metaLeader = metaclient.HostaddrToString(leader)
-			reCreate = true
+			logger.WithField("path", req.Path).Info("Remove storage origin data successfully.")
 		}
 	}
 	return nil
 }
 
-func (r *Restore) dropSpace(m *meta.BackupMeta) error {
+// backup_root/backup_name
+//   - meta
+//      - xxx.sst
+//      - ...
+//   - data
+//   - backup_name.meta
+func (r *Restore) Restore() error {
+	logger := log.WithField("backup", r.cfg.BackupName)
+	// check backup dir existence
+	rootUri, err := utils.UriJoin(r.cfg.Backend.Uri(), r.cfg.BackupName)
+	if err != nil {
+		return err
+	}
+	exist := r.sto.ExistDir(r.ctx, rootUri)
+	if !exist {
+		return fmt.Errorf("backup dir %s does not exist", rootUri)
+	}
+	logger.WithField("uri", rootUri).Info("Check backup dir successfully")
 
-	var client *metaclient.MetaClient
-	reCreate := true
-
-	for _, info := range m.GetBackupInfo() {
-		for {
-			if reCreate {
-				client = metaclient.NewMetaClient(r.log)
-				err := client.Open(r.metaLeader)
-				if err != nil {
-					return err
-				}
-			}
-
-			dropReq := meta.NewDropSpaceReq()
-			defer client.Close()
-			dropReq.SpaceName = info.Space.SpaceName
-			dropReq.IfExists = true
-
-			resp, err := client.DropSpace(dropReq)
-			if err != nil {
-				return err
-			}
-
-			if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
-				r.log.Error("drop space failed", zap.String("error code", resp.GetCode().String()))
-				return dropSpaceFailed
-			}
-
-			if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
-				reCreate = false
-				break
-			}
-
-			leader := resp.GetLeader()
-			if leader == meta.ExecResp_Leader_DEFAULT {
-				return LeaderNotFoundError
-			}
-
-			r.log.Info("leader changed", zap.String("leader", leader.String()))
-			r.metaLeader = metaclient.HostaddrToString(leader)
-			reCreate = true
+	// download and parse backup meta file
+	if err := utils.EnsureDir(utils.LocalTmpDir); err != nil {
+		return err
+	}
+	defer func() {
+		if err := utils.RemoveDir(utils.LocalTmpDir); err != nil {
+			log.WithError(err).Errorf("Remove tmp dir %s failed", utils.LocalTmpDir)
 		}
-	}
-	return nil
-}
+	}()
 
-func (r *Restore) RestoreCluster() error {
-
-	resp, err := r.listCluster()
+	backupMetaName := fmt.Sprintf("%s.meta", r.cfg.BackupName)
+	metaUri, _ := utils.UriJoin(rootUri, backupMetaName)
+	tmpLocalPath := filepath.Join(utils.LocalTmpDir, backupMetaName)
+	err = r.sto.Download(r.ctx, tmpLocalPath, metaUri, false)
 	if err != nil {
-		r.log.Error("list cluster info failed", zap.Error(err))
-		return err
+		return fmt.Errorf("download %s to %s failed: %w", metaUri, tmpLocalPath, err)
 	}
-	r.log.Info("listcluster result", zap.String("listcluster", metaclient.ListClusterInfoRespToString(resp)))
-
-	r.setStorageInfo(resp)
-
-	metaInfo, err := r.getMetaInfo(resp.GetMetaServers())
+	bakMeta, err := utils.ParseMetaFromFile(tmpLocalPath)
 	if err != nil {
-		return err
-	}
-	r.metaNodes = metaInfo
-
-	// show target cluster map
-	// r.storageNodes
-	// r.metaNodes
-
-	for _, m := range metaInfo {
-		r.log.Info("meta node", zap.String("node addr", m.Addrs))
+		return fmt.Errorf("parse backup meta file %s failed: %w", tmpLocalPath, err)
 	}
 
-	err = r.check()
-
+	// check this cluster's topology with info kept in backup meta
+	err = r.checkPhysicalTopology(bakMeta.GetSpaceBackups())
 	if err != nil {
-		r.log.Error("restore check failed", zap.Error(err))
-		return err
+		return fmt.Errorf("physical topology not consistent: %w", err)
 	}
 
-	err = r.downloadMetaFile()
-	if err != nil {
-		r.log.Error("download meta file failed", zap.Error(err))
-		return err
-	}
-
-	m, err := r.restoreMetaFile()
-
-	if err != nil {
-		r.log.Error("restore meta file failed", zap.Error(err))
-		return err
-	}
-
-	err = r.checkPhysicalTopology(m.BackupInfo)
-	if err != nil {
-		r.log.Error("check physical failed", zap.Error(err))
-		return err
-	}
-	r.backSuffix = storage.GetBackupDirSuffix()
-	r.log.Info("restore target's backup suffix", zap.String("suffix", r.backSuffix))
-
-	if !m.IncludeSystemSpace {
-		err = r.checkSpace(m)
+	// if only resotre some spaces, check and remove these spaces
+	if !bakMeta.AllSpaces {
+		err = r.checkAndDropSpaces(bakMeta.SpaceBackups)
 		if err != nil {
-			r.log.Error("check space failed", zap.Error(err))
-			return err
+			return fmt.Errorf("check and drop space failed: %w", err)
 		}
-		err = r.dropSpace(m)
-		if err != nil {
-			r.log.Error("drop space faile", zap.Error(err))
-			return err
-		}
+		log.Info("Check and drop spaces successfully")
 	}
 
+	// stop cluster
 	err = r.stopCluster()
 	if err != nil {
-		r.log.Error("stop cluster failed", zap.Error(err))
-		return err
+		return fmt.Errorf("stop cluster failed: %w", err)
 	}
+	logger.Info("Stop cluster successfully")
 
-	if m.IncludeSystemSpace {
-		var bakUrls []string
-		bakUrls, err = r.backupOriginal()
-		if err != nil {
-			r.log.Error("backup original failed", zap.Error(err))
-			return err
-		}
-		r.log.Info("success backup original data", zap.Strings("backup data urls", bakUrls))
-	}
-
-	g, _ := errgroup.WithContext(context.Background())
-
-	var files []string
-
-	for _, f := range m.MetaFiles {
-		files = append(files, string(f[:]))
-	}
-
-	sstFiles := r.downloadMeta(g, files)
-	storageIDMap := r.downloadStorage(g, m.BackupInfo)
-
-	err = g.Wait()
+	// backup original data if we are to restore whole cluster
+	err = r.backupOriginal(bakMeta.AllSpaces)
 	if err != nil {
-		r.log.Error("restore error")
-		return err
+		return fmt.Errorf("backup origin data path failed: %w", err)
 	}
+	logger.Info("Backup origin cluster data successfully")
 
+	// download backup data from external storage to cluster
+	err = r.downloadMeta()
+	if err != nil {
+		return fmt.Errorf("download meta data to cluster failed: %w", err)
+	}
+	log.Info("Download meta data to cluster successfully.")
+	storageMap, err := r.downloadStorage(bakMeta)
+	if err != nil {
+		return fmt.Errorf("download storage data to cluster failed: %w", err)
+	}
+	log.Info("Download storage data to cluster successfully.")
+
+	// start meta service first
 	err = r.startMetaService()
 	if err != nil {
-		r.log.Error("start cluster failed", zap.Error(err))
-		return err
+		return fmt.Errorf("start meta service failed: %w", err)
 	}
-
 	time.Sleep(time.Second * 3)
+	log.Info("Start meta service successfully.")
 
-	err = r.restoreMeta(sstFiles, storageIDMap)
+	// restore meta service by map
+	err = r.restoreMeta(bakMeta, storageMap)
 	if err != nil {
-		r.log.Error("restore meta file failed", zap.Error(err))
-		return err
+		return fmt.Errorf("restore cluster meta failed: %w", err)
 	}
+	log.Info("Restore meta service successfully.")
 
+	// strat storage and graph service
 	err = r.startStorageService()
 	if err != nil {
-		r.log.Error("start storage service failed", zap.Error(err))
-		return err
+		return fmt.Errorf("start storage service failed: %w", err)
 	}
-
-	r.log.Info("restore meta successed")
+	err = r.startGraphService()
+	if err != nil {
+		return fmt.Errorf("start graph service failed: %w", err)
+	}
+	log.Info("Start storage and graph services successfully")
 
 	// after success restore, cleanup the backup data if needed
-	if m.IncludeSystemSpace {
-		err = r.cleanupOriginalBackup()
-		if err != nil {
-			r.log.Warn("cleanup backup data failed", zap.Error(err))
-		}
+	err = r.cleanupOriginalData()
+	if err != nil {
+		return fmt.Errorf("clean up origin data failed: %w", err)
 	}
+	log.Info("Cleanup origin data successfully")
 	return nil
 }

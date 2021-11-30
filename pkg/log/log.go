@@ -1,17 +1,34 @@
 package log
 
-import "go.uber.org/zap"
+import (
+	"io"
+	"os"
 
-type Logger struct {
-	path string
-	*zap.Logger
-}
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
+	"github.com/vesoft-inc/nebula-br/pkg/config"
+)
 
-func NewLogger(logPath string) (*Logger, error) {
-	cfg := zap.NewProductionConfig()
-	cfg.OutputPaths = []string{
-		logPath,
+func SetLog(flags *pflag.FlagSet) error {
+	logrus.SetReportCaller(true)
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: "2006-01-02T15:04:05.000Z",
+	})
+	logrus.SetLevel(logrus.InfoLevel)
+
+	path, err := flags.GetString(config.FlagLogPath)
+	if err != nil {
+		return err
 	}
-	log, err := cfg.Build()
-	return &Logger{logPath, log}, err
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logrus.WithError(err).WithField("file", path).Error("Create log path failed")
+		return err
+	}
+
+	mw := io.MultiWriter(os.Stdout, file)
+	logrus.SetOutput(mw)
+
+	return nil
 }

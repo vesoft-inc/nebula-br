@@ -1,0 +1,88 @@
+package storage
+
+import (
+	"fmt"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
+)
+
+const (
+	flagStorage = "storage"
+
+	flagS3Endpoint  = "s3.endpoint"
+	flagS3Region    = "s3.region"
+	flagS3AccessKey = "s3.access_key"
+	flagS3SecretKey = "s3.secret_key"
+)
+
+func AddFlags(flags *pflag.FlagSet) {
+	flags.String(flagStorage, "",
+		`backup target url, format: <SCHEME>://<PATH>.
+    <SCHEME>: a string indicating which backend type. optional: local, hdfs.
+    now hdfs and local is supported, s3 and oss are still experimental.
+    example:
+    for local - "local:///the/local/path/to/backup"
+    for s3  - "s3://example/url/to/the/backup"
+    `)
+	cobra.MarkFlagRequired(flags, flagStorage)
+	AddS3Flags(flags)
+	AddLocalFlags(flags)
+}
+
+func AddS3Flags(flags *pflag.FlagSet) {
+	flags.String(flagS3Region, "", "S3 Option: set region or location to upload or download backup")
+	flags.String(flagS3Endpoint, "",
+		"S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly")
+	flags.String(flagS3AccessKey, "", "S3 Option: set access key id")
+	flags.String(flagS3SecretKey, "", "S3 Option: set secret key for access id")
+}
+
+func AddLocalFlags(flags *pflag.FlagSet) {
+	// There is no need extra flags for local storage other than local uri
+}
+
+func ParseFromFlags(flags *pflag.FlagSet) (*pb.Backend, error) {
+	s, err := flags.GetString(flagStorage)
+	if err != nil {
+		return nil, err
+	}
+	s = strings.TrimRight(s, "/ ") // trim tailing space and / in passed in storage uri
+
+	t := pb.ParseType(s)
+	b := &pb.Backend{}
+	switch t {
+	case pb.LocalType:
+		b.SetUri(s)
+	case pb.S3Type:
+		region, err := flags.GetString(flagS3Region)
+		if err != nil {
+			return nil, err
+		}
+		endpoint, err := flags.GetString(flagS3Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		accessKey, err := flags.GetString(flagS3AccessKey)
+		if err != nil {
+			return nil, err
+		}
+		secretKey, err := flags.GetString(flagS3SecretKey)
+		if err != nil {
+			return nil, err
+		}
+		b.SetUri(s)
+		b.GetS3().Region = region
+		b.GetS3().Endpoint = endpoint
+		b.GetS3().AccessKey = accessKey
+		b.GetS3().SecretKey = secretKey
+	default:
+		return nil, fmt.Errorf("bad format backend: %d", t)
+	}
+
+	log.WithField("type", t).WithField("uri", s).Debugln("Parse storage flag")
+	return b, nil
+}

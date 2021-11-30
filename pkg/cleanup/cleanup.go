@@ -1,73 +1,81 @@
 package cleanup
 
 import (
-	"errors"
+	"context"
+	"fmt"
 
+	"github.com/vesoft-inc/nebula-agent/pkg/storage"
+	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
-	"github.com/vesoft-inc/nebula-br/pkg/metaclient"
+	"github.com/vesoft-inc/nebula-br/pkg/utils"
 
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
-	"go.uber.org/zap"
+	log "github.com/sirupsen/logrus"
 )
 
 type Cleanup struct {
-	log    *zap.Logger
-	config config.CleanupConfig
+	ctx    context.Context
+	cfg    config.CleanupConfig
+	client *clients.NebulaMeta
+	sto    storage.ExternalStorage
 }
 
-var LeaderNotFoundError = errors.New("not found leader")
-var CleanupError = errors.New("cleanup failed")
-
-func NewCleanup(config config.CleanupConfig, log *zap.Logger) *Cleanup {
-	return &Cleanup{log, config}
-}
-
-func (c *Cleanup) dropBackup() (*meta.ExecResp, error) {
-	addr := c.config.MetaServer[0]
-	backupName := []byte(c.config.BackupName[:])
-
-	for {
-		client := metaclient.NewMetaClient(c.log)
-		err := client.Open(addr)
-		if err != nil {
-			return nil, err
-		}
-
-		snapshot := meta.NewDropSnapshotReq()
-		snapshot.Name = backupName
-		defer client.Close()
-
-		resp, err := client.DropBackup(snapshot)
-		if err != nil {
-			return nil, err
-		}
-
-		if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED && resp.GetCode() != nebula.ErrorCode_SUCCEEDED {
-			c.log.Error("cleanup failed", zap.String("error code", resp.GetCode().String()))
-			return nil, CleanupError
-		}
-
-		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
-			return resp, nil
-		}
-
-		leader := resp.GetLeader()
-		if leader == meta.ExecResp_Leader_DEFAULT {
-			return nil, LeaderNotFoundError
-		}
-
-		c.log.Info("leader changed", zap.String("leader", leader.String()))
-		addr = metaclient.HostaddrToString(leader)
-	}
-}
-
-func (c *Cleanup) Run() error {
-	_, err := c.dropBackup()
+func NewCleanup(ctx context.Context, cfg config.CleanupConfig) (*Cleanup, error) {
+	sto, err := storage.New(cfg.Backend)
 	if err != nil {
-		c.log.Error("cleanup failed", zap.Error(err))
+		return nil, fmt.Errorf("create storage for %s failed: %w", cfg.Backend.Uri(), err)
+	}
+
+	client, err := clients.NewMeta(cfg.MetaAddr)
+	if err != nil {
+		return nil, fmt.Errorf("create meta client failed: %w", err)
+	}
+
+	return &Cleanup{
+		ctx:    ctx,
+		cfg:    cfg,
+		client: client,
+		sto:    sto,
+	}, nil
+}
+
+func (c *Cleanup) cleanNebula() error {
+	err := c.client.DropBackup([]byte(c.cfg.BackupName))
+	if err != nil {
+		return fmt.Errorf("drop backup failed: %w", err)
+	}
+	log.Debugf("Drop backup %s successfully", c.cfg.BackupName)
+
+	return nil
+}
+
+func (c *Cleanup) cleanExternal() error {
+	backupUri, err := utils.UriJoin(c.cfg.Backend.Uri(), c.cfg.BackupName)
+	if err != nil {
 		return err
 	}
-	c.log.Info("cleanup finished", zap.String("backupname", c.config.BackupName))
+
+	err = c.sto.RemoveDir(c.ctx, backupUri)
+	if err != nil {
+		return fmt.Errorf("remove %s in external storage failed: %w", backupUri, err)
+	}
+	return nil
+}
+
+func (c *Cleanup) Clean() error {
+	logger := log.WithField("backup name", c.cfg.BackupName)
+
+	logger.Info("Start to cleanup data in nebula cluster")
+	err := c.cleanNebula()
+	if err != nil {
+		return fmt.Errorf("clean nebula local data failed: %w", err)
+	}
+
+	logger.Info("Start cleanup data in external storage")
+	err = c.cleanExternal()
+	if err != nil {
+		return fmt.Errorf("clean external storage data failed: %w", err)
+	}
+
+	logger.Info("Clean up backup data successfully")
 	return nil
 }

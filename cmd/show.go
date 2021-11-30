@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/log"
 	"github.com/vesoft-inc/nebula-br/pkg/show"
-	"go.uber.org/zap"
 )
 
 var backendUrl string
@@ -16,30 +18,31 @@ func NewShowCmd() *cobra.Command {
 		Short:        "show backup info",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// nil mean backup all space
+			err := log.SetLog(cmd.Flags())
+			if err != nil {
+				return fmt.Errorf("init logger failed: %w", err)
+			}
 
-			logger, err := log.NewLogger(config.LogPath)
+			cfg := &config.ShowConfig{}
+			err = cfg.ParseFlags(cmd.Flags())
 			if err != nil {
 				return err
 			}
 
-			defer logger.Sync() // flushes buffer, if any
-
-			s := show.NewShow(backendUrl, logger.Logger)
-
-			err = s.ShowInfo()
+			s, err := show.NewShow(context.TODO(), cfg)
 			if err != nil {
-				logger.Error("show info failed", zap.Error(err))
+				return err
+			}
+
+			err = s.Show()
+			if err != nil {
 				return err
 			}
 
 			return nil
 		},
 	}
-
-	showCmd.PersistentFlags().StringVar(&backendUrl, "storage", "", "storage path")
-
-	showCmd.MarkPersistentFlagRequired("storage")
+	config.AddCommonFlags(showCmd.PersistentFlags())
 
 	return showCmd
 }
