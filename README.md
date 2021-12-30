@@ -1,14 +1,13 @@
 # Overview
-Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph spaces of [Nebula Graph](https://github.com/vesoft-inc/nebula-graph) and to restore data from the backup files.
+Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph spaces of [Nebula](https://github.com/vesoft-inc/nebula) and to restore data from the backup files.
 
 # Features
 - Full backup or restore in one-click operation
 - Supported multiple backend types for storing the backup files:
   - Local Disk
-  - Hadoop HDFS
-  - Alibaba Cloud OSS
-  - Amazon S3 (_EXPERIMENTAL_)
-- Supports backing up data of entire Nebula Graph cluster or specified spaces of it（_EXPERIMENTAL_）
+  - S3-Compatiable Storage(such as Alibaba Cloud OSS, Amazon S3, MinIO, Ceph RGW, and so on).
+- Supports backing up data of entire Nebula Graph cluster or specified spaces of it（_EXPERIMENTAL_), but now it has some limitations:
+  - when restore use this, all other spaces will be erased!
 
 # Limitation
 - Incremental backup not supported for now
@@ -18,11 +17,9 @@ Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph
 - For backup to local disk, backup files would be placed at each services(e.g. storage or meta)'s local path. A recommended practice is to mount a NFS Filesystem at that path so that one can restore the backup files to a difference host. For detail, please reference to the [Implementation](#Implementation) part.
 - Restoring a backup of specified spaces is only allowed to perform INPLACE, which means that if one backup a specified space from Cluster-A, this backup cannot be restored to another cluster(Let's say Cluster-B). Restoring an entire backup wouldn't have this limitation
 - Target cluster to restore must have the same topologies with the cluster where the backup comes from
-- Hosts where BR CLI run and the hosts of target cluster(both storage and meta service) be authenticated with provided username in SSH Tunnel protocol
 
 # Prerequisites
-- Hosts of cluster and host of CLI running at should be ssh authenticated with provided username. 
-- Hosts of cluster has installed cli tools of selected backend in $PATH: `hadoop` for HDFS, `ossutil` for Alibaba Cloud OSS, `aws` for amazon s3, etc.
+- Nebula cluster to backup/restore should start the agent service in each host
 
 # Quick Start
 - Clone the tool repo: 
@@ -41,7 +38,7 @@ bin/br version
 ```
 
 - Basically one can run with `--help` for each subcommand usage of BR.
-  - Backup a cluster:
+  - Full backup a cluster:
   ```
   Usage:
     br backup full [flags]
@@ -50,101 +47,125 @@ bin/br version
     -h, --help   help for full
 
   Global Flags:
-        --concurrent int       max concurrent(for aliyun OSS) (default 5)
-        --connection int       max ssh connection (default 5)
-        --extra_args string    backup storage utils(oss/hdfs/s3) args for backup
-        --log string           log path (default "br.log")
-        --meta string          meta server
-        --spaces stringArray   (EXPERIMENTAL)space names.
+        --log string             Specify br detail log path (default "br.log")
+        --meta string            Specify meta server, any metad server will be ok
+        --spaces stringArray     (EXPERIMENTAL)space names.
                                    By this option, user can specify which spaces to backup. Now this feature is still experimental.
+                                   If not specified, will backup all spaces.
 
-        --storage string       backup target url, format: <SCHEME>://<PATH>.
-                                   <SCHEME>: a string indicating which backend type. optional: local, hdfs.
-                                   now hdfs and local is supported, s3 and oss are still experimental.
-                                   example:
-                                   for local - "local:///the/local/path/to/backup"
-                                   for hdfs  - "hdfs://example_host:example_port/examplepath"
-                                   for oss - "oss://example/url/to/the/backup"
-                                   (EXPERIMENTAL) for s3  - "s3://example/url/to/the/backup"
+        --storage string         backup target url, format: <SCHEME>://<PATH>.
+                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
+                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     example:
+                                     for local - "local:///the/local/path/to/backup"
+                                     for s3  - "s3://example/url/to/the/backup" 
 
-        --user string          username to login into the hosts where meta/storage service located
-        --verbose              show backup detailed informations
+        --s3.access_key string   S3 Option: set access key id
+        --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
+        --s3.region string       S3 Option: set region or location to upload or download backup
+        --s3.secret_key string   S3 Option: set secret key for access id
   ```
 
-  For example, the command below will conduct a full backup operation of entire cluster whose meta service's address is `0.0.0.0:1234`, with username `foo` to ssh-login hosts of cluster and upload the backup files to HDFS URL `hdfs://0.0.0.0:9000/example/backup/path`.
+  For example, the command below will conduct a full backup operation of entire cluster whose meta service's address is `127.0.0.1:9559`, upload the backup files to minio storage `s3://br-test/backup`.
   ```
-  br backup full --meta "0.0.0.0:1234" --storage "hdfs://0.0.0.0:9000/example/backup/path" --user "foo" --verbose
+  /br backup full --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin
   ```
+
+  Note: only when the storage uri is "s3://xxx", the s3 option is necessary. If the uri is "local://xxx", the s3 option is useless.
 
   - Show information of existing backups:
   ```
   Usage:
-    br show [flags]
+  br show [flags]
 
   Flags:
-    -h, --help             help for show
-        --storage string   storage path
-
-  Global Flags:
-        --log string   log path (default "br.log")
+    -h, --help                   help for show
+        --log string             Specify br detail log path (default "br.log")
+        --s3.access_key string   S3 Option: set access key id
+        --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
+        --s3.region string       S3 Option: set region or location to upload or download backup
+        --s3.secret_key string   S3 Option: set secret key for access id
+        --storage string         backup target url, format: <SCHEME>://<PATH>.
+                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
+                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     example:
+                                     for local - "local:///the/local/path/to/backup"
+                                     for s3  - "s3://example/url/to/the/backup" 
   ```
 
   For example, the command below will list the information of existing backups in HDFS URL `hdfs://0.0.0.0:9000/example/backup/path`
   ```
-  br show --storage "hdfs://0.0.0.0:9000/example/backup/path"
+  br show  --s3.endpoint "http://192.168.8.214:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin
   ```
 
   Output of `show` subcommand would be like below:
   ```
-  +----------------------------+---------------------+------------------------------------+-------------+--------------+
-  |            NAME            |     CREATE TIME     |               SPACES               | FULL BACKUP | SYSTEM SPACE |
-  +----------------------------+---------------------+------------------------------------+-------------+--------------+
-  | BACKUP_2021_07_16_02_39_04 | 2021-07-16 10:39:05 | basketballplayer                   | true        | true         |
-  +----------------------------+---------------------+------------------------------------+-------------+--------------+
+  +----------------------------+---------------------+--------+-------------+------------+
+  |            NAME            |     CREATE TIME     | SPACES | FULL BACKUP | ALL SPACES |
+  +----------------------------+---------------------+--------+-------------+------------+
+  | BACKUP_2021_12_11_14_40_12 | 2021-12-11 14:40:43 | nba    | true        | true       |
+  | BACKUP_2021_12_13_14_18_52 | 2021-12-13 14:18:52 | nba    | true        | true       |
+  | BACKUP_2021_12_13_15_06_27 | 2021-12-13 15:06:29 | nba    | true        | false      |
+  | BACKUP_2021_12_21_12_01_59 | 2021-12-21 12:01:59 | nba    | true        | false      |
+  +----------------------------+---------------------+--------+-------------+------------+
   ```
-
 
   - Restore cluster from a specified backup:
   ```
   Usage:
-    br restore [command]
-
-  Available Commands:
-    full        full restore Nebula Graph Database
+   br restore full [flags]
 
   Flags:
-        --concurrent int      max concurrent(for aliyun OSS) (default 5)
-        --extra_args string   storage utils(oss/hdfs/s3) args for restore
-    -h, --help                help for restore
-        --meta string         meta server
-        --name string         backup name
-        --storage string      storage path
-        --user string         user for meta and storage
+    -h, --help   help for full
 
   Global Flags:
-        --log string   log path (default "br.log")
+        --concurrency int        Max concurrency for download data (default 5)
+        --log string             Specify br detail log path (default "br.log")
+        --meta string            Specify meta server, any metad server will be ok
+        --name string            Specify backup name
 
-  Use "br restore [command] --help" for more information about a command.
+        --storage string         backup target url, format: <SCHEME>://<PATH>.
+                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
+                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     example:
+                                     for local - "local:///the/local/path/to/backup"
+                                     for s3  - "s3://example/url/to/the/backup" 
+
+        --s3.access_key string   S3 Option: set access key id
+        --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
+        --s3.region string       S3 Option: set region or location to upload or download backup
+        --s3.secret_key string   S3 Option: set secret key for access id
   ```
 
-  For example, the command below will conduct a restore operation, which restore to the cluster whose meta service address is `0.0.0.0:1234`, from local disk in path `/example/backup/path`. 
+  For example, the command below will conduct a restore operation, which restore to the cluster whose meta service address is `127.0.0.1:9559`, from local disk in path `/home/nebula/backup/BACKUP_2021_12_08_18_38_08`. 
   Note that by local disk backend, it will restore the backup files from the local path of the target cluster. If target cluster's host has changed, it may encounter an error because of missing files. A recommend practice is to mount a common NFS to prevent that. 
-    ```
-    br restore full --meta "0.0.0.0:1234" --storage "local:///example/backup/path" --name "BACKUP_2021_07_16_02_39_04" --user "foo"
-    ```
 
-  - Clean up temporary files if any error occured during backup.
-    ```
-    Usage:
-      br cleanup [flags]
+  ```
+  br restore full --storage "local:///home/nebula/backup/" --meta "127.0.0.1:9559" --name BACKUP_2021_12_08_18_38_08
+  ```
 
-    Flags:
-          --backup_name string   backup name
-      -h, --help                 help for cleanup
-          --meta strings         meta server
+  - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage.
+  ```
+  Usage:
+    br cleanup [flags]
 
-    Global Flags:
-          --log string   log path (default "br.log")
+  Flags:
+    -h, --help                   help for cleanup
+        --log string             Specify br detail log path (default "br.log")
+        --meta string            Specify meta server, any metad service will be ok
+        --name string            Specify backup name
+
+        --storage string         backup target url, format: <SCHEME>://<PATH>.
+                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
+                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     example:
+                                     for local - "local:///the/local/path/to/backup"
+                                     for s3  - "s3://example/url/to/the/backup
+    
+        --s3.access_key string   S3 Option: set access key id
+        --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
+        --s3.region string       S3 Option: set region or location to upload or download backup
+        --s3.secret_key string   S3 Option: set secret key for access id
     ```
 
 # Implementation<a name="Implementation"></a>
@@ -163,3 +184,5 @@ bin/br version
  - For restoring storage service's data, BR CLI would download the snapshots and restart storage service.
 
  
+ Note: BR CLI depend on agents in cluster hosts to upload/download the backup files between the external storage and the cluster machines.
+

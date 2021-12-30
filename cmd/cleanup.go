@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/vesoft-inc/nebula-br/pkg/cleanup"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
@@ -10,16 +13,26 @@ import (
 func NewCleanupCmd() *cobra.Command {
 	cleanupCmd := &cobra.Command{
 		Use:          "cleanup",
-		Short:        "[EXPERIMENTAL]Clean up temporary files in backup",
+		Short:        "Cleanup backup files in external storage and nebula cluster",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger, _ := log.NewLogger(config.LogPath)
+			err := log.SetLog(cmd.Flags())
+			if err != nil {
+				return fmt.Errorf("init logger failed: %w", err)
+			}
 
-			defer logger.Sync() // flushes buffer, if any
-			c := cleanup.NewCleanup(cleanupConfig, logger.Logger)
+			cfg := config.CleanupConfig{}
+			err = cfg.ParseFlags(cmd.Flags())
+			if err != nil {
+				return fmt.Errorf("parse flags failed")
+			}
 
-			err := c.Run()
+			c, err := cleanup.NewCleanup(context.TODO(), cfg)
+			if err != nil {
+				return err
+			}
 
+			err = c.Clean()
 			if err != nil {
 				return err
 			}
@@ -28,10 +41,7 @@ func NewCleanupCmd() *cobra.Command {
 		},
 	}
 
-	cleanupCmd.PersistentFlags().StringVar(&cleanupConfig.BackupName, "backup_name", "", "backup name")
-	cleanupCmd.MarkPersistentFlagRequired("backup_name")
-	cleanupCmd.PersistentFlags().StringSliceVar(&cleanupConfig.MetaServer, "meta", nil, "meta server")
-	cleanupCmd.MarkPersistentFlagRequired("meta")
-
+	config.AddCommonFlags(cleanupCmd.PersistentFlags())
+	config.AddCleanupFlags(cleanupCmd.PersistentFlags())
 	return cleanupCmd
 }

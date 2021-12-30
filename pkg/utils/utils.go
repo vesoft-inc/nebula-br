@@ -2,21 +2,19 @@ package utils
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
-	"go.uber.org/zap"
 )
 
-func PutMetaToFile(logger *zap.Logger, meta *meta.BackupMeta, filename string) error {
+func DumpMetaToFile(meta *meta.BackupMeta, filename string) error {
 	file, err := os.OpenFile(filename, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		logger.Error("store backupmeta failed in open file",
-			zap.String("filename", filename),
-			zap.String("error", err.Error()))
-		return err
+		return fmt.Errorf("open file %s failed: %w", filename, err)
 	}
 	defer file.Close()
 
@@ -30,23 +28,17 @@ func PutMetaToFile(logger *zap.Logger, meta *meta.BackupMeta, filename string) e
 
 	err = meta.Write(binaryOut)
 	if err != nil {
-		logger.Error("store backupmeta failed in write",
-			zap.String("filename", filename),
-			zap.String("error", err.Error()))
-		return err
+		return fmt.Errorf("write backup meta to %s failed: %w", filename, err)
 	}
 
 	binaryOut.Flush()
 	return nil
 }
 
-func GetMetaFromFile(logger *zap.Logger, filename string) (*meta.BackupMeta, error) {
+func ParseMetaFromFile(filename string) (*meta.BackupMeta, error) {
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
-		logger.Error("get backupmeta failed in open file",
-			zap.String("filename", filename),
-			zap.String("error", err.Error()))
-		return nil, err
+		return nil, fmt.Errorf("open file %s failed: %w", filename, err)
 	}
 	defer file.Close()
 
@@ -60,46 +52,50 @@ func GetMetaFromFile(logger *zap.Logger, filename string) (*meta.BackupMeta, err
 	m := meta.NewBackupMeta()
 	err = m.Read(binaryIn)
 	if err != nil {
-		logger.Error("get backupmeta failed in read", zap.String("filename", filename), zap.String("error", err.Error()))
-		return nil, err
+		return nil, fmt.Errorf("read from backup meta: %s failed: %w", filename, err)
 	}
 	return m, nil
 }
 
-type BackupMetaOperator interface {
-	OprSBI(nebula.GraphSpaceID, *meta.SpaceBackupInfo)
-	OprBI(*meta.BackupInfo)
-	OprCKP(*nebula.CheckpointInfo)
-	OprPtBi(*nebula.PartitionBackupInfo)
-}
+const (
+	LocalTmpDir = "/tmp/nebula-br"
+)
 
-type ShowBackupMeta struct {
-}
-
-func (s ShowBackupMeta) OprSBI(sid nebula.GraphSpaceID, m *meta.SpaceBackupInfo) {
-	fmt.Printf("space.id: %d .name: %s\n", sid, m.Space.SpaceName)
-}
-func (s ShowBackupMeta) OprBI(m *meta.BackupInfo) {
-	fmt.Printf("backupinfo.host: %s\n", m.Host.String())
-}
-func (s ShowBackupMeta) OprCKP(m *nebula.CheckpointInfo) {
-	fmt.Printf("ckp.path: %s\n", string(m.Path))
-}
-func (s ShowBackupMeta) OprPtBi(m *nebula.PartitionBackupInfo) {
-	for k, _ := range m.Info {
-		fmt.Printf("partid: %d\n", k)
+func EnsureDir(dir string) error {
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("ensure dirs %s failed: %w", dir, err)
 	}
+	return nil
 }
 
-func IterateBackupMeta(m map[nebula.GraphSpaceID]*meta.SpaceBackupInfo, bmo BackupMetaOperator) {
-	for k, v := range m { // k: nebula.GraphSpaceID, v: *meta.SpaceBackupInfo
-		bmo.OprSBI(k, v)
-		for _, binf := range v.Info { // bidx: int, binf: *meta.BackupInfo
-			bmo.OprBI(binf)
-			for _, ckp := range binf.Info { //ckp: *nebula.CheckpointInfo
-				bmo.OprCKP(ckp)
-				bmo.OprPtBi(ckp.PartitionInfo)
-			}
-		}
+func RemoveDir(dir string) error {
+	err := os.RemoveAll(dir)
+	if err != nil {
+		return fmt.Errorf("remove tmp dirs %s failed: %w", dir, err)
 	}
+	return nil
+}
+
+func IsBackupName(path string) bool {
+	return strings.HasPrefix(path, "BACKUP")
+}
+
+func UriJoin(elem ...string) (string, error) {
+	if len(elem) == 0 {
+		return "", fmt.Errorf("empty paths")
+	}
+
+	if len(elem) == 1 {
+		return elem[0], nil
+	}
+
+	u, err := url.Parse(elem[0])
+	if err != nil {
+		return "", fmt.Errorf("parse base uri %s failed: %w", elem[0], err)
+	}
+
+	elem[0] = u.Path
+	u.Path = path.Join(elem...)
+	return u.String(), nil
 }

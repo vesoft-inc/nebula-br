@@ -1,3 +1,4 @@
+.PHONY: build test fmt
 GO      ?= go
 PKG := ./pkg/...
 
@@ -14,9 +15,11 @@ LDFLAGS += -X $(REPO)/pkg/version.GitRef=$(GITREF)
 
 build:
 	$(GO) build -ldflags '$(LDFLAGS)' -o $(BUILDTARGET) main.go
+	chmod +x $(BUILDTARGET)
 
 test:
 	$(GO) test -v $(PKG) -short
 
 fmt:
 	$(GO) mod tidy && find . -path vendor -prune -o -type f -iname '*.go' -exec go fmt {} \;
+
