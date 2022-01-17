@@ -147,6 +147,10 @@ func (h *NebulaHosts) GetRootDirs() map[string][]*HostDir {
 	return hostRoots
 }
 
+func (h *NebulaHosts) GetHostServices() map[string][]*meta.ServiceInfo {
+	return h.hosts
+}
+
 func (h *NebulaHosts) GetAgents() []*nebula.HostAddr {
 	var al []*nebula.HostAddr
 	for _, services := range h.hosts {
