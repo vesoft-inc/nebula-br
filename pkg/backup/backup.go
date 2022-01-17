@@ -59,7 +59,7 @@ func NewBackup(ctx context.Context, cfg *config.BackupConfig) (*Backup, error) {
 // upload the meta backup files in host to external uri
 // localDir are absolute meta checkpoint folder in host filesystem
 // targetUri is external storage's uri, which is meta's root dir,
-// has pattern like local://xxx, hdfs://xxx
+// has pattern like local://xxx, s3://xxx
 func (b *Backup) uploadMeta(host *nebula.HostAddr, targetUri string, localDir string) error {
 	agentAddr, err := b.hosts.GetAgentFor(b.meta.LeaderAddr())
 	if err != nil {

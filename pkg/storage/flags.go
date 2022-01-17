@@ -22,8 +22,8 @@ const (
 func AddFlags(flags *pflag.FlagSet) {
 	flags.String(flagStorage, "",
 		`backup target url, format: <SCHEME>://<PATH>.
-    <SCHEME>: a string indicating which backend type. optional: local, hdfs.
-    now hdfs and local is supported, s3 and oss are still experimental.
+    <SCHEME>: a string indicating which backend type. optional: local, s3.
+    now only s3-compatible is supported.
     example:
     for local - "local:///the/local/path/to/backup"
     for s3  - "s3://example/url/to/the/backup"
