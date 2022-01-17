@@ -185,3 +185,11 @@ bin/br version
  
  Note: BR CLI depend on agents in cluster hosts to upload/download the backup files between the external storage and the cluster machines.
 
+## Local Storage Mode
+
+Local mode have strictly usage preconditions:
+1. BR CLI could be only used in the same machine when backup/restore/cleanup/show all the time.
+2. If you have multi-metad, you should use a shared filesystem path as the local uri which is mounted to all the cluster machines, such as nfs, distributed filesystem. Otherwise, you will restore metad service failed.
+
+Then we suggest that you should only use local storage in experiment environment. In production environment, s3-compatible storage backend is highly recommended.
+
