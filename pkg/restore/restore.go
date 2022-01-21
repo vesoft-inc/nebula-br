@@ -326,32 +326,43 @@ func (r *Restore) startMetaService() error {
 }
 
 func (r *Restore) stopCluster() error {
-	rootDirs := r.hosts.GetRootDirs()
-	for _, agentAddr := range r.hosts.GetAgents() {
+	for host, services := range r.hosts.GetHostServices() {
+		logger := log.WithField("host", host)
+
+		var agentAddr *nebula.HostAddr
+		for _, s := range services {
+			if s.GetRole() == meta.HostRole_AGENT {
+				if agentAddr == nil {
+					agentAddr = s.GetAddr()
+				} else {
+					return fmt.Errorf("there are two agents in host %s: %s, %s", s.GetAddr().GetHost(),
+						utils.StringifyAddr(agentAddr), utils.StringifyAddr(s.GetAddr()))
+				}
+			}
+		}
 		agent, err := r.agentMgr.GetAgent(agentAddr)
 		if err != nil {
 			return fmt.Errorf("get agent %s failed: %w", utils.StringifyAddr(agentAddr), err)
 		}
 
-		dirs, ok := rootDirs[agentAddr.Host]
-		if !ok {
-			log.WithField("host", agentAddr.Host).Info("Does not find nebula root dirs in this host")
-			continue
-		}
-
-		logger := log.WithField("host", agentAddr.Host)
-		for _, d := range dirs {
-			req := &pb.StopServiceRequest{
-				Role: pb.ServiceRole_ALL,
-				Dir:  d.Dir,
+		for _, s := range services {
+			if s.GetRole() == meta.HostRole_AGENT {
+				continue
 			}
-			logger.WithField("dir", d.Dir).Info("Stop services")
+
+			req := &pb.StopServiceRequest{
+				Role: pb.ServiceRole(s.GetRole()),
+				Dir:  string(s.GetDir().GetRoot()),
+			}
+
+			logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Info("Stop services")
 			_, err := agent.StopService(req)
 			if err != nil {
 				return fmt.Errorf("stop services in host %s failed: %w", agentAddr.Host, err)
 			}
 		}
 	}
+
 	return nil
 }
 

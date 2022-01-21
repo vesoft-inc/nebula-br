@@ -15,7 +15,7 @@ var backendUrl string
 func NewShowCmd() *cobra.Command {
 	showCmd := &cobra.Command{
 		Use:          "show",
-		Short:        "show backup info",
+		Short:        "show backup info list in external storage",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := log.SetLog(cmd.Flags())

@@ -19,7 +19,11 @@ Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph
 - Target cluster to restore must have the same topologies with the cluster where the backup comes from
 
 # Prerequisites
-- Nebula cluster to backup/restore should start the agent service in each host
+
+## Nebula Agent
+Nebula cluster to backup/restore should start the [agent](https://github.com/vesoft-inc/nebula-agent) service in each cluster(including metad, storaged, graphd) host. Notice that, if you have multi-services in the same host, you need only start one agent. That is to say,  you need exactly one agent in each cluster host no matter how many services in it.
+In the future, the nebula-agent will be started automatically, but now, you should start it yourself in your cluster machines one by one. You could download it from nebula-agent repo and start it as the guidance in that repo. 
+
 
 # Quick Start
 - Clone the tool repo: 
@@ -54,8 +58,8 @@ bin/br version
                                    If not specified, will backup all spaces.
 
         --storage string         backup target url, format: <SCHEME>://<PATH>.
-                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
-                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     <SCHEME>: a string indicating which backend type. optional: local, s3.
+                                     now only s3-compatible backend is supported.
                                      example:
                                      for local - "local:///the/local/path/to/backup"
                                      for s3  - "s3://example/url/to/the/backup" 
@@ -86,16 +90,16 @@ bin/br version
         --s3.region string       S3 Option: set region or location to upload or download backup
         --s3.secret_key string   S3 Option: set secret key for access id
         --storage string         backup target url, format: <SCHEME>://<PATH>.
-                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
-                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     <SCHEME>: a string indicating which backend type. optional: local, s3.
+                                     now only s3-compatible backend is supported.
                                      example:
                                      for local - "local:///the/local/path/to/backup"
                                      for s3  - "s3://example/url/to/the/backup" 
   ```
 
-  For example, the command below will list the information of existing backups in HDFS URL `hdfs://0.0.0.0:9000/example/backup/path`
+  For example, the command below will list the information of existing backups in S3 URL `s3://127.0.0.1:9000/br-test/backup`
   ```
-  br show  --s3.endpoint "http://192.168.8.214:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin
+  br show  --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin
   ```
 
   Output of `show` subcommand would be like below:
@@ -125,8 +129,8 @@ bin/br version
         --name string            Specify backup name
 
         --storage string         backup target url, format: <SCHEME>://<PATH>.
-                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
-                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     <SCHEME>: a string indicating which backend type. optional: local, s3.
+                                     now only s3-compatible backend is supported.
                                      example:
                                      for local - "local:///the/local/path/to/backup"
                                      for s3  - "s3://example/url/to/the/backup" 
@@ -144,7 +148,7 @@ bin/br version
   br restore full --storage "local:///home/nebula/backup/" --meta "127.0.0.1:9559" --name BACKUP_2021_12_08_18_38_08
   ```
 
-  - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage.
+  - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage. You could also use it to clean up old backups files in external storage.
   ```
   Usage:
     br cleanup [flags]
@@ -156,8 +160,7 @@ bin/br version
         --name string            Specify backup name
 
         --storage string         backup target url, format: <SCHEME>://<PATH>.
-                                     <SCHEME>: a string indicating which backend type. optional: local, hdfs.
-                                     now hdfs and local is supported, s3 and oss are still experimental.
+                                     <SCHEME>: a string indicating which backend type. optional: local, s3.
                                      example:
                                      for local - "local:///the/local/path/to/backup"
                                      for s3  - "s3://example/url/to/the/backup
@@ -174,7 +177,7 @@ bin/br version
  BR CLI would send an RPC request to leader of the meta services of Nebula Graph to backup the cluster. Before the backup is created, the meta service will block any writes to the cluster, including DDL and DML statements. The blocking operation is involved with the raft layer of cluster. After that, meta service send an RPC request to all storage service to create snapshot. Metadata of the cluster stored in meta services will be backup as well. Those backup files includes:
  - The backup files of storage service are snapshots of wal for raft layer and snapshots of lower-level storage engine, rocksdb's checkpoint for example. 
  - The backup files of meta service are a list of SSTables exported by scanning some particular metadatas.
- After backup files generated, a metafile which describing this backup would be generated. Along with the backup files, BR CLI would upload those files and the meta file into user specified backends. Note that for local disk backend, backup files would be copied to a local path of services defined by `--storage`, the meta file would be copied into a local path of the host where BR CLI running at.
+ After backup files generated, a metafile which describing this backup would be generated. Along with the backup files, BR CLI would upload those files and the meta file into user specified backends. Note that for local disk backend, backup files would be copied to each local path of services defined by `--storage`, the meta file would be copied into a local path of the host where BR CLI running at. That is to say, when restore, the BR CLI must run in the same host which it runs when backup.
  
 ## Restore
  BR CLI would first check the topologies of the target cluster and the backup. If not match the requirements, the restore operation would be abort.
@@ -185,4 +188,12 @@ bin/br version
 
  
  Note: BR CLI depend on agents in cluster hosts to upload/download the backup files between the external storage and the cluster machines.
+
+## Local Storage Mode
+
+Local mode have strictly usage preconditions:
+1. BR CLI could be only used in the same machine when backup/restore/cleanup/show all the time.
+2. If you have multi-metad, you should use a shared filesystem path as the local uri which is mounted to all the cluster machines, such as nfs, distributed filesystem. Otherwise, you will restore metad service failed.
+
+Then we suggest that you should only use local storage in experiment environment. In production environment, s3-compatible storage backend is highly recommended.
 

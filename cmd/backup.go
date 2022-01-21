@@ -13,7 +13,7 @@ import (
 func NewBackupCmd() *cobra.Command {
 	backupCmd := &cobra.Command{
 		Use:          "backup",
-		Short:        "backup Nebula Graph Database",
+		Short:        "backup Nebula Graph Database to external storage for restore",
 		SilenceUsage: true,
 	}
 

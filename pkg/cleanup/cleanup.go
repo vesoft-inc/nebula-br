@@ -3,6 +3,7 @@ package cleanup
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
@@ -10,6 +11,7 @@ import (
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
 
 	log "github.com/sirupsen/logrus"
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 )
 
 type Cleanup struct {
@@ -17,6 +19,9 @@ type Cleanup struct {
 	cfg    config.CleanupConfig
 	client *clients.NebulaMeta
 	sto    storage.ExternalStorage
+
+	hosts    *utils.NebulaHosts
+	agentMgr *clients.AgentManager
 }
 
 func NewCleanup(ctx context.Context, cfg config.CleanupConfig) (*Cleanup, error) {
@@ -30,11 +35,23 @@ func NewCleanup(ctx context.Context, cfg config.CleanupConfig) (*Cleanup, error)
 		return nil, fmt.Errorf("create meta client failed: %w", err)
 	}
 
+	listRes, err := client.ListCluster()
+	if err != nil {
+		return nil, fmt.Errorf("list cluster failed: %w", err)
+	}
+	hosts := &utils.NebulaHosts{}
+	err = hosts.LoadFrom(listRes)
+	if err != nil {
+		return nil, fmt.Errorf("parse cluster response failed: %w", err)
+	}
+
 	return &Cleanup{
-		ctx:    ctx,
-		cfg:    cfg,
-		client: client,
-		sto:    sto,
+		ctx:      ctx,
+		cfg:      cfg,
+		client:   client,
+		sto:      sto,
+		hosts:    hosts,
+		agentMgr: clients.NewAgentManager(ctx, hosts),
 	}, nil
 }
 
@@ -58,6 +75,32 @@ func (c *Cleanup) cleanExternal() error {
 	if err != nil {
 		return fmt.Errorf("remove %s in external storage failed: %w", backupUri, err)
 	}
+	log.Debugf("Remove %s successfullly", backupUri)
+
+	// Local backend's data lay in different cluster machines,
+	// which should be handled separately
+	if c.cfg.Backend.GetLocal() != nil {
+		for _, addr := range c.hosts.GetAgents() {
+			agent, err := clients.NewAgent(c.ctx, addr)
+			if err != nil {
+				return fmt.Errorf("create agent for %s failed: %w when clean local data",
+					utils.StringifyAddr(addr), err)
+			}
+
+			// This is an hack, generally, we could not get local path
+			// from uri by triming directly
+			backupPath := strings.TrimPrefix(backupUri, "local://")
+			removeReq := &pb.RemoveDirRequest{
+				Path: backupPath,
+			}
+			_, err = agent.RemoveDir(removeReq)
+			if err != nil {
+				return fmt.Errorf("remove %s in host: %s failed: %w", backupPath, addr.Host, err)
+			}
+			log.Debugf("Remove local data %s in %s successfullly", backupPath, addr.Host)
+		}
+	}
+
 	return nil
 }
 
