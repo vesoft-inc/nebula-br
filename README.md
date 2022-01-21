@@ -19,7 +19,11 @@ Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph
 - Target cluster to restore must have the same topologies with the cluster where the backup comes from
 
 # Prerequisites
-- Nebula cluster to backup/restore should start the agent service in each host
+
+## Nebula Agent
+Nebula cluster to backup/restore should start the [agent](https://github.com/vesoft-inc/nebula-agent) service in each cluster(including metad, storaged, graphd) host. Notice that, if you have multi-services in the same host, you need only start one agent. That is to say,  you need exactly one agent in each cluster host no matter how many services in it.
+In the future, the nebula-agent will be started automatically, but now, you should start it yourself in your cluster machines one by one. You could download it from nebula-agent repo and start it as the guidance in that repo. 
+
 
 # Quick Start
 - Clone the tool repo: 
