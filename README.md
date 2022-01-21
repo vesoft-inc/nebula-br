@@ -148,7 +148,7 @@ bin/br version
   br restore full --storage "local:///home/nebula/backup/" --meta "127.0.0.1:9559" --name BACKUP_2021_12_08_18_38_08
   ```
 
-  - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage.
+  - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage. You could also use it to clean up old backups files in external storage.
   ```
   Usage:
     br cleanup [flags]

@@ -13,7 +13,7 @@ import (
 func NewRestoreCmd() *cobra.Command {
 	restoreCmd := &cobra.Command{
 		Use:          "restore",
-		Short:        "restore Nebula Graph Database",
+		Short:        "restore Nebula Graph Database, notice that it will restart the cluster",
 		SilenceUsage: true,
 	}
 	config.AddCommonFlags(restoreCmd.PersistentFlags())
