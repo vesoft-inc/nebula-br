@@ -21,7 +21,7 @@ func NewCleanupCmd() *cobra.Command {
 				return fmt.Errorf("init logger failed: %w", err)
 			}
 
-			cfg := config.CleanupConfig{}
+			cfg := &config.CleanupConfig{}
 			err = cfg.ParseFlags(cmd.Flags())
 			if err != nil {
 				return fmt.Errorf("parse flags failed")

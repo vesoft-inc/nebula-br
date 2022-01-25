@@ -16,7 +16,7 @@ import (
 
 type Cleanup struct {
 	ctx    context.Context
-	cfg    config.CleanupConfig
+	cfg    *config.CleanupConfig
 	client *clients.NebulaMeta
 	sto    storage.ExternalStorage
 
@@ -24,7 +24,7 @@ type Cleanup struct {
 	agentMgr *clients.AgentManager
 }
 
-func NewCleanup(ctx context.Context, cfg config.CleanupConfig) (*Cleanup, error) {
+func NewCleanup(ctx context.Context, cfg *config.CleanupConfig) (*Cleanup, error) {
 	sto, err := storage.New(cfg.Backend)
 	if err != nil {
 		return nil, fmt.Errorf("create storage for %s failed: %w", cfg.Backend.Uri(), err)
