@@ -85,6 +85,8 @@ func NewShow(ctx context.Context, cfg *config.ShowConfig) (*Show, error) {
 func (s *Show) downloadMetaFiles() (map[string]string, error) {
 	metaFiles := make(map[string]string)
 	for _, bname := range s.backupNames {
+		bname = strings.Trim(bname, "/") // the s3 list result may have slash
+
 		if !utils.IsBackupName(bname) {
 			log.Infof("%s is not backup name", bname)
 			continue
