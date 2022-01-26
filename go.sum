@@ -218,8 +218,8 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/vesoft-inc/nebula-agent v0.0.0-20211230083817-a9effd897e2c h1:KPiVKnrQiEJaKrtT5EewVZD9jwoQJ4eaQZR4eX2Q4sQ=
-github.com/vesoft-inc/nebula-agent v0.0.0-20211230083817-a9effd897e2c/go.mod h1:79lL9wmxYYKgMHP+9Q+MLc3q+G9HFU/sCnBhy85G0B0=
+github.com/vesoft-inc/nebula-agent v0.1.0 h1:ROcnM5BUguBErwMaaZM4tmiCl2T92xE1fxAiB9cAc6g=
+github.com/vesoft-inc/nebula-agent v0.1.0/go.mod h1:79lL9wmxYYKgMHP+9Q+MLc3q+G9HFU/sCnBhy85G0B0=
 github.com/vesoft-inc/nebula-go/v2 v2.5.2-0.20211228055601-b5b11a36e453 h1:1rwe3LQVuTRUJBf4Gonc47+T3dCD29EzkrRaTzkUNdw=
 github.com/vesoft-inc/nebula-go/v2 v2.5.2-0.20211228055601-b5b11a36e453/go.mod h1:YRIuog6zyRKz0SagwwTcqHXCPjJ4GfQelIl+/FgSC+Y=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=

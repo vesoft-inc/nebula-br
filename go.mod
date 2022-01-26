@@ -10,7 +10,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/vesoft-inc/nebula-agent v0.0.0-20211230083817-a9effd897e2c
+	github.com/vesoft-inc/nebula-agent v0.1.0
 	github.com/vesoft-inc/nebula-go/v2 v2.5.2-0.20211228055601-b5b11a36e453
 	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881 // indirect
 )
