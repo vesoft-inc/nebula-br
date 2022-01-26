@@ -70,9 +70,12 @@ bin/br version
         --s3.secret_key string   S3 Option: set secret key for access id
   ```
 
-  For example, the command below will conduct a full backup operation of entire cluster whose meta service's address is `127.0.0.1:9559`, upload the backup files to minio storage `s3://br-test/backup`.
-  ```
-  /br backup full --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin
+  For example, the command below will conduct a full backup operation of entire cluster whose meta service's address is `127.0.0.1:9559`, upload the backup files to local `/home/nebula/backup`  or S3 URL `s3://127.0.0.1:9000/br-test/backup`.
+  ```bash
+  # for local
+  br backup full --meta "127.0.0.1:9559" --storage "local:///home/nebula/backup/"
+  # for s3
+  br backup full --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin --s3.region=default
   ```
 
   Note: only when the storage uri is "s3://xxx", the s3 option is necessary. If the uri is "local://xxx", the s3 option is useless.
@@ -97,9 +100,12 @@ bin/br version
                                      for s3  - "s3://example/url/to/the/backup" 
   ```
 
-  For example, the command below will list the information of existing backups in S3 URL `s3://127.0.0.1:9000/br-test/backup`
-  ```
-  br show  --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin
+  For example, the command below will list the information of existing backups in local path `/home/nebula/backup` or  S3 URL `s3://127.0.0.1:9000/br-test/backup`
+  ```bash
+  # for local
+  br show --storage "local:///home/nebula/backup"
+  # for s3
+  br show --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin --s3.region=default
   ```
 
   Output of `show` subcommand would be like below:
@@ -141,12 +147,18 @@ bin/br version
         --s3.secret_key string   S3 Option: set secret key for access id
   ```
 
-  For example, the command below will conduct a restore operation, which restore to the cluster whose meta service address is `127.0.0.1:9559`, from local disk in path `/home/nebula/backup/BACKUP_2021_12_08_18_38_08`. 
+  For example, the command below will conduct a restore operation, which restore to the cluster whose meta service address is `127.0.0.1:9559`, from local disk in path `/home/nebula/backup/BACKUP_2021_12_08_18_38_08` or s3 URL `s3://127.0.0.1:9000/br-test/backupu/BACKUP_2021_12_08_18_38_08`
+
   Note that by local disk backend, it will restore the backup files from the local path of the target cluster. If target cluster's host has changed, it may encounter an error because of missing files. A recommend practice is to mount a common NFS to prevent that. 
 
+  ```bash
+  # for local
+  br restore full --meta "127.0.0.1:9559" --storage "local:///home/nebula/backup/" --name BACKUP_2021_12_08_18_38_08
+  # for s3
+  br restore full --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin --s3.region="default" --name BACKUP_2021_12_08_18_38_08
   ```
-  br restore full --storage "local:///home/nebula/backup/" --meta "127.0.0.1:9559" --name BACKUP_2021_12_08_18_38_08
-  ```
+
+  Note: if your new cluster hosts' ip are not all the same with the backup cluster, after restore, you should add the hosts needed in the new cluster one by one.
 
   - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage. You could also use it to clean up old backups files in external storage.
   ```
@@ -169,7 +181,16 @@ bin/br version
         --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
         --s3.region string       S3 Option: set region or location to upload or download backup
         --s3.secret_key string   S3 Option: set secret key for access id
-    ```
+  ```
+
+  For example:
+  ```bash
+  # for local
+  br cleanup --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="local:///home/nebula/backup/" --name BACKUP_2021_12_08_18_38_08
+
+  # for s3
+  br cleanup --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin --name=BACKUP_2021_12_08_18_38_08
+  ```
 
 # Implementation<a name="Implementation"></a>
 

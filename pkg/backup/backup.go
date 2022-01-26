@@ -143,35 +143,40 @@ func (b *Backup) generateMetaFile(meta *meta.BackupMeta) (string, error) {
 	return tmpMetaPath, utils.DumpMetaToFile(meta, tmpMetaPath)
 }
 
-func (b *Backup) Backup() error {
+// Backup backup data in given external storage, and return the backup name
+func (b *Backup) Backup() (string, error) {
 	// step2: call the meta service, create backup files in each local
 	backupRes, err := b.meta.CreateBackup(b.cfg.Spaces)
 	if err != nil {
-		return err
+		if backupRes != nil && backupRes.GetMeta() != nil && backupRes.GetMeta().GetBackupName() != nil {
+			return string(backupRes.GetMeta().GetBackupName()), nil
+		}
+		return "", err
 	}
 	backupInfo := backupRes.GetMeta()
-	logger := log.WithField("name", string(backupInfo.GetBackupName()))
+	backupName := string(backupInfo.GetBackupName())
+	logger := log.WithField("name", backupName)
 	logger.WithField("backup info", utils.StringifyBackup(backupInfo)).Info("Create backup in nebula machine's local")
 
 	// step3: ensure root dir
 	rootUri, err := utils.UriJoin(b.cfg.Backend.Uri(), string(backupInfo.BackupName))
 	if err != nil {
-		return err
+		return backupName, err
 	}
 	err = b.sto.EnsureDir(b.ctx, rootUri, false)
 	if err != nil {
-		return fmt.Errorf("ensure dir %s failed: %w", rootUri, err)
+		return backupName, fmt.Errorf("ensure dir %s failed: %w", rootUri, err)
 	}
 	logger.WithField("root", rootUri).Info("Ensure backup root dir")
 
 	// step4: upload meta files
 	metaDir, _ := utils.UriJoin(rootUri, "meta")
 	if len(backupInfo.GetMetaFiles()) == 0 {
-		return fmt.Errorf("there is no meta files in backup info")
+		return backupName, fmt.Errorf("there is no meta files in backup info")
 	}
 	localMetaDir := path.Dir(string(backupInfo.MetaFiles[0]))
 	if err = b.uploadMeta(b.meta.LeaderAddr(), metaDir, localMetaDir); err != nil {
-		return err
+		return backupName, err
 	}
 	logger.WithField("meta", metaDir).Info("Upload meta successfully")
 
@@ -194,13 +199,13 @@ func (b *Backup) Backup() error {
 	}
 	err = b.uploadStorage(hostDirs, storageDir)
 	if err != nil {
-		return fmt.Errorf("upload stoarge failed %w", err)
+		return backupName, fmt.Errorf("upload stoarge failed %w", err)
 	}
 	logger.WithField("data", storageDir).Info("Upload data backup successfully")
 
 	// step6: generate backup meta files and upload
 	if err := utils.EnsureDir(utils.LocalTmpDir); err != nil {
-		return err
+		return backupName, err
 	}
 	defer func() {
 		if err := utils.RemoveDir(utils.LocalTmpDir); err != nil {
@@ -210,23 +215,23 @@ func (b *Backup) Backup() error {
 
 	tmpMetaPath, err := b.generateMetaFile(backupInfo)
 	if err != nil {
-		return fmt.Errorf("write meta to tmp path failed: %w", err)
+		return backupName, fmt.Errorf("write meta to tmp path failed: %w", err)
 	}
 	logger.WithField("tmp path", tmpMetaPath).Info("Write meta data to local tmp file successfully")
 	backupMetaPath, _ := utils.UriJoin(rootUri, filepath.Base(tmpMetaPath))
 	err = b.sto.Upload(b.ctx, backupMetaPath, tmpMetaPath, false)
 	if err != nil {
-		return fmt.Errorf("upload local tmp file to remote storage %s failed: %w", backupMetaPath, err)
+		return backupName, fmt.Errorf("upload local tmp file to remote storage %s failed: %w", backupMetaPath, err)
 	}
 	logger.WithField("remote path", backupMetaPath).Info("Upload tmp backup meta file to remote")
 
 	// step7: drop backup files in cluster machine local and local tmp files
 	err = b.meta.DropBackup(backupInfo.GetBackupName())
 	if err != nil {
-		return fmt.Errorf("drop backup %s in cluster local failed: %w",
+		return backupName, fmt.Errorf("drop backup %s in cluster local failed: %w",
 			string(backupInfo.BackupName[:]), err)
 	}
 	logger.Info("Drop backup in cluster and local tmp folder successfully")
 
-	return nil
+	return backupName, nil
 }

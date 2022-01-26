@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/vesoft-inc/nebula-br/pkg/backup"
+	"github.com/vesoft-inc/nebula-br/pkg/cleanup"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/log"
 )
@@ -45,10 +46,30 @@ func newFullBackupCmd() *cobra.Command {
 			}
 
 			fmt.Println("start to backup cluster...")
-			err = b.Backup()
+			backupName, err := b.Backup()
 			if err != nil {
+				fmt.Println("backup failed, will try to clean the remaining garbage...")
+
+				if backupName != "" {
+					cleanCfg := &config.CleanupConfig{
+						BackupName: backupName,
+						Backend:    cfg.Backend,
+						MetaAddr:   cfg.MetaAddr,
+					}
+					c, err := cleanup.NewCleanup(context.TODO(), cleanCfg)
+					if err != nil {
+						return fmt.Errorf("create cleanup for %s failed: %w", backupName, err)
+					}
+
+					err = c.Clean()
+					if err != nil {
+						return fmt.Errorf("cleanup %s failed when backup failed: %w", backupName, err)
+					}
+					fmt.Printf("cleanup backup %s successfully after backup failed", backupName)
+				}
 				return err
 			}
+
 			fmt.Println("backup successed.")
 			return nil
 		},

@@ -40,12 +40,23 @@ func (b *backupInfo) StringTable() []string {
 		return broken_info
 	}
 
-	var table []string
-	table = append(table, string(b.BackupName))
-	table = append(table, b.CreateTime)
-	table = append(table, strings.Join(b.Spaces, ","))
-	table = append(table, strconv.FormatBool(b.Full))
-	table = append(table, strconv.FormatBool(b.AllSpaces))
+	table := broken_info
+	table[0] = b.BackupName
+
+	if b.CreateTime != "" {
+		table[1] = b.CreateTime
+	} else {
+		return table
+	}
+
+	if b.Spaces != nil && len(b.Spaces) != 0 {
+		table[2] = strings.Join(b.Spaces, ",")
+	} else {
+		return table
+	}
+
+	table[3] = strconv.FormatBool(b.Full)
+	table[4] = strconv.FormatBool(b.AllSpaces)
 	return table
 }
 
@@ -71,37 +82,46 @@ func NewShow(ctx context.Context, cfg *config.ShowConfig) (*Show, error) {
 	}, nil
 }
 
-func (s *Show) downloadMetaFiles() ([]string, error) {
-	metaFiles := make([]string, 0)
+func (s *Show) downloadMetaFiles() (map[string]string, error) {
+	metaFiles := make(map[string]string)
 	for _, bname := range s.backupNames {
+		bname = strings.Trim(bname, "/") // the s3 list result may have slash
+
 		if !utils.IsBackupName(bname) {
 			log.Infof("%s is not backup name", bname)
 			continue
 		}
+
 		metaName := bname + ".meta"
 		localTmpPath := filepath.Join(utils.LocalTmpDir, metaName)
 		externalUri, _ := utils.UriJoin(s.cfg.Backend.Uri(), bname, metaName)
+
 		err := s.sto.Download(s.ctx, localTmpPath, externalUri, false)
 		if err != nil {
-			return nil, fmt.Errorf("download %s to %s failed: %w", externalUri, localTmpPath, err)
+			log.WithError(err).Infof("download %s to %s failed", externalUri, localTmpPath)
+		} else {
+			log.WithField("external", externalUri).WithField("local", localTmpPath).Debug("Download backup meta file successfully.")
 		}
-		log.WithField("external", externalUri).WithField("local", localTmpPath).Debug("Download backup meta file successfully.")
 
-		metaFiles = append(metaFiles, localTmpPath)
+		metaFiles[bname] = localTmpPath
 	}
 
 	return metaFiles, nil
 }
 
-func (s *Show) parseMetaFiles(metaPathList []string) ([]*backupInfo, error) {
+func (s *Show) parseMetaFiles(metaPaths map[string]string) ([]*backupInfo, error) {
 	var infoList []*backupInfo
-	for _, path := range metaPathList {
+	for name, path := range metaPaths {
 		log.WithField("meta path", path).Debug("Start parse meta file")
 		m, err := utils.ParseMetaFromFile(path)
-		if m == nil {
+		if err != nil || m == nil {
 			log.WithError(err).WithField("meta path", path).Error("parse meta file failed")
-			infoList = append(infoList, nil)
+			infoList = append(infoList, &backupInfo{BackupName: name})
 			continue
+		}
+
+		if name != string(m.BackupName) {
+			log.Errorf("Name from path: %s and name parsed from meta: %s are not consistent", name, string(m.BackupName))
 		}
 
 		spaces := make([]string, 0)
