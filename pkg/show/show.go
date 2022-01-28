@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -144,6 +145,9 @@ func (s *Show) parseMetaFiles(metaPaths map[string]string) ([]*backupInfo, error
 }
 
 func (s *Show) showBackupInfo(infoList []*backupInfo) {
+	sort.Slice(infoList, func(i, j int) bool {
+		return strings.Compare(infoList[i].BackupName, infoList[j].BackupName) < 0
+	})
 	asciiTable := make([][]string, 0)
 	for _, info := range infoList {
 		asciiTable = append(asciiTable, info.StringTable())

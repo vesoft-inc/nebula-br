@@ -2,6 +2,8 @@ module github.com/vesoft-inc/nebula-br
 
 go 1.16
 
+replace github.com/vesoft-inc/nebula-agent => /home/pengwei.song/code/nebula-agent
+
 require (
 	github.com/facebook/fbthrift v0.31.1-0.20211129061412-801ed7f9f295
 	github.com/google/uuid v1.3.0

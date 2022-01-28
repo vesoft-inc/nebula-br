@@ -47,6 +47,22 @@ func (h *NebulaHosts) LoadFrom(resp *meta.ListClusterInfoResp) error {
 	}
 
 	h.hosts = resp.GetHostServices()
+
+	// check only one agent in each host
+	for _, services := range h.hosts {
+		var agentAddr *nebula.HostAddr
+		for _, s := range services {
+			if s.GetRole() == meta.HostRole_AGENT {
+				if agentAddr == nil {
+					agentAddr = s.GetAddr()
+				} else {
+					return fmt.Errorf("there are more than one agent in host %s: %s, %s", s.GetAddr().GetHost(),
+						StringifyAddr(agentAddr), StringifyAddr(s.GetAddr()))
+				}
+			}
+		}
+	}
+
 	log.WithField("host info", h.String()).Info("Get cluster topology from the nebula")
 	return nil
 }

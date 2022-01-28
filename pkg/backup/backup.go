@@ -146,7 +146,7 @@ func (b *Backup) generateMetaFile(meta *meta.BackupMeta) (string, error) {
 
 // Backup backs up data in given external storage, and return the backup name
 func (b *Backup) Backup() (string, error) {
-	// step2: call the meta service, create backup files in each local
+	// call the meta service, create backup files in each local
 	backupRes, err := b.meta.CreateBackup(b.cfg.Spaces)
 	if err != nil {
 		if backupRes != nil && backupRes.GetMeta() != nil && backupRes.GetMeta().GetBackupName() != nil {
@@ -159,7 +159,7 @@ func (b *Backup) Backup() (string, error) {
 	logger := log.WithField("name", backupName)
 	logger.WithField("backup info", utils.StringifyBackup(backupInfo)).Info("Create backup in nebula machine's local")
 
-	// step3: ensure root dir
+	// ensure root dir
 	rootUri, err := utils.UriJoin(b.cfg.Backend.Uri(), string(backupInfo.BackupName))
 	if err != nil {
 		return backupName, err
@@ -170,7 +170,7 @@ func (b *Backup) Backup() (string, error) {
 	}
 	logger.WithField("root", rootUri).Info("Ensure backup root dir")
 
-	// step4: upload meta files
+	// upload meta files
 	metaDir, err := utils.UriJoin(rootUri, "meta")
 	if err != nil {
 		return backupName, err
@@ -184,7 +184,7 @@ func (b *Backup) Backup() (string, error) {
 	}
 	logger.WithField("meta", metaDir).Info("Upload meta successfully")
 
-	// step5: upload storage files
+	// upload storage files
 	storageDir, _ := utils.UriJoin(rootUri, "data")
 	hostDirs := make(map[string]map[string][]string)
 	// group checkpoint dirs by host and space id
@@ -207,7 +207,7 @@ func (b *Backup) Backup() (string, error) {
 	}
 	logger.WithField("data", storageDir).Info("Upload data backup successfully")
 
-	// step6: generate backup meta files and upload
+	// generate backup meta files and upload
 	if err := utils.EnsureDir(utils.LocalTmpDir); err != nil {
 		return backupName, err
 	}
@@ -232,7 +232,7 @@ func (b *Backup) Backup() (string, error) {
 	}
 	logger.WithField("remote path", backupMetaPath).Info("Upload tmp backup meta file to remote")
 
-	// step7: drop backup files in cluster machine local and local tmp files
+	// drop backup files in cluster machine local and local tmp files
 	err = b.meta.DropBackup(backupInfo.GetBackupName())
 	if err != nil {
 		return backupName, fmt.Errorf("drop backup %s in cluster local failed: %w",

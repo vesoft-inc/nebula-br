@@ -552,7 +552,7 @@ func (r *Restore) Restore() error {
 	}
 	logger.Info("Stop cluster successfully")
 
-	// backup original data if we are to restore whole cluster
+	// backup original data
 	err = r.backupOriginal(bakMeta.AllSpaces)
 	if err != nil {
 		return fmt.Errorf("backup origin data path failed: %w", err)
