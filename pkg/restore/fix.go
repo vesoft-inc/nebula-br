@@ -14,6 +14,7 @@ import (
 )
 
 type Fix struct {
+	r        *Restore
 	hosts    *utils.NebulaHosts
 	agentMgr *clients.AgentManager
 
@@ -26,6 +27,7 @@ func NewFixFrom(r *Restore) (*Fix, error) {
 	}
 
 	return &Fix{
+		r:          r,
 		hosts:      r.hosts,
 		agentMgr:   r.agentMgr,
 		backSuffix: GetBackupSuffix(),
@@ -187,35 +189,68 @@ func (f *Fix) startDead(deadServices []*meta.ServiceInfo) error {
 	return nil
 }
 
-func (f *Fix) Fix() (err error) {
-	tryTimes := 3
-	for try := 1; try <= tryTimes; try++ {
-		err = f.fixData()
-		if err != nil {
-			log.WithError(err).Infof("Fix data failed, try times=%d", try)
-			continue
-		}
-	}
-	if err != nil {
-		return
-	}
-
-	for try := 1; try <= tryTimes; try++ {
-		var ds []*meta.ServiceInfo
-		ds, err = f.getDead()
-		if err != nil {
-			log.WithError(err).Infof("Get dead services failed, try times=%d", try)
-			continue
+func retry(action func() error, aname string, times int) (err error) {
+	for try := 1; try <= times; try++ {
+		err = action()
+		if err == nil {
+			return
 		}
 
-		log.Infof("There are %d dead service left", len(ds))
-		err = f.startDead(ds)
-		if err != nil {
-			log.WithError(err).Infof("Start dead service failed, try times=%d", try)
-			time.Sleep(time.Second * time.Duration(try))
-			continue
-		}
+		log.WithError(err).Infof("%s failed, try times=%d", aname, try)
+		time.Sleep(time.Second * time.Duration(try))
 	}
 
 	return
+}
+
+func (f *Fix) Fix() error {
+	tryTimes := 3
+
+	// check if all services alive
+	allAlive := false
+	checkAlive := func() error {
+		if ds, err := f.getDead(); err != nil {
+			return err
+		} else {
+			allAlive = len(ds) == 0
+			return nil
+		}
+	}
+	err := retry(checkAlive, "Get dead services", tryTimes)
+	if allAlive {
+		log.Info("All services are OK")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	// stop all service for data movement
+	if err := retry(f.r.stopCluster, "Stop all services", tryTimes); err != nil {
+		return err
+	}
+
+	// move back data path
+	if err := retry(f.fixData, "Fix data", tryTimes); err != nil {
+		return err
+	}
+
+	// start all services
+	getdeadThenStart := func() error {
+		ds, err := f.getDead()
+		if err != nil {
+			return fmt.Errorf("get services failed:  %w", err)
+		}
+		log.Infof("There are %d dead service left", len(ds))
+		err = f.startDead(ds)
+		if err != nil {
+			return fmt.Errorf("start dead services failed: %w", err)
+		}
+		return nil
+	}
+	if err := retry(getdeadThenStart, "Get dead services then start", tryTimes); err != nil {
+		return err
+	}
+
+	return nil
 }
