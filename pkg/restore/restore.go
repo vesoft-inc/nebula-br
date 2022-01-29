@@ -10,14 +10,14 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
+	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
-
-	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 )
 
 func GetBackupSuffix() string {
@@ -230,7 +230,7 @@ func (r *Restore) downloadStorage(backup *meta.BackupMeta) (map[string]string, e
 	// TODO(spw): only support same ip now, by sorting address
 	// could match by label(or id) in the future, now suppose the label is ip.
 
-	// current cluster storage serivce list
+	// current cluster storage service list
 	currList := r.hosts.GetStorages()
 	sort.Slice(currList, func(i, j int) bool {
 		if currList[i].Addr.Host != currList[j].Addr.Host {
@@ -586,7 +586,7 @@ func (r *Restore) Restore() error {
 	}
 	log.Info("Restore meta service successfully.")
 
-	// strat storage and graph service
+	// start storage and graph service
 	err = r.startStorageService()
 	if err != nil {
 		return fmt.Errorf("start storage service failed: %w", err)

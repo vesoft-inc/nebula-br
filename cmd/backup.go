@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
 	"github.com/vesoft-inc/nebula-br/pkg/backup"
 	"github.com/vesoft-inc/nebula-br/pkg/cleanup"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
@@ -70,7 +71,7 @@ func newFullBackupCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Println("backup successed.")
+			fmt.Println("backup succeed.")
 			return nil
 		},
 	}

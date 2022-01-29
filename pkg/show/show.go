@@ -13,9 +13,10 @@ import (
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
+	_ "github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
-	_ "github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 )
 
 type Show struct {
@@ -35,32 +36,31 @@ type backupInfo struct {
 }
 
 func (b *backupInfo) StringTable() []string {
-	broken_info := []string{"", "backup is broken", "N/A", "N/A", "N/A"}
+	brokenInfo := []string{"", "backup is broken", "N/A", "N/A", "N/A"}
 	if b == nil {
-		return broken_info
+		return brokenInfo
 	}
 
-	table := broken_info
+	table := brokenInfo
 	table[0] = b.BackupName
 
-	if b.CreateTime != "" {
-		table[1] = b.CreateTime
-	} else {
+	if b.CreateTime == "" {
 		return table
 	}
+	table[1] = b.CreateTime
 
-	if b.Spaces != nil && len(b.Spaces) != 0 {
-		table[2] = strings.Join(b.Spaces, ",")
-	} else {
+	if len(b.Spaces) == 0 {
 		return table
 	}
+	table[2] = strings.Join(b.Spaces, ",")
 
 	table[3] = strconv.FormatBool(b.Full)
 	table[4] = strconv.FormatBool(b.AllSpaces)
+
 	return table
 }
 
-var tableHeader []string = []string{"name", "create_time", "spaces", "full_backup", "all_spaces"}
+var tableHeader = []string{"name", "create_time", "spaces", "full_backup", "all_spaces"}
 
 func NewShow(ctx context.Context, cfg *config.ShowConfig) (*Show, error) {
 	s, err := storage.New(cfg.Backend)
@@ -85,7 +85,7 @@ func NewShow(ctx context.Context, cfg *config.ShowConfig) (*Show, error) {
 func (s *Show) downloadMetaFiles() (map[string]string, error) {
 	metaFiles := make(map[string]string)
 	for _, bname := range s.backupNames {
-		bname = strings.Trim(bname, "/") // the s3 list result may have slash
+		bname = strings.Trim(bname, "/") // the s3 list result may have slashes
 
 		if !utils.IsBackupName(bname) {
 			log.Infof("%s is not backup name", bname)
@@ -149,10 +149,10 @@ func (s *Show) showBackupInfo(infoList []*backupInfo) {
 		asciiTable = append(asciiTable, info.StringTable())
 	}
 
-	tablewriter := tablewriter.NewWriter(os.Stdout)
-	tablewriter.SetHeader(tableHeader)
-	tablewriter.AppendBulk(asciiTable)
-	tablewriter.Render()
+	tw := tablewriter.NewWriter(os.Stdout)
+	tw.SetHeader(tableHeader)
+	tw.AppendBulk(asciiTable)
+	tw.Render()
 }
 
 func (s *Show) Show() error {

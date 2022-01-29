@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
+
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 )
 

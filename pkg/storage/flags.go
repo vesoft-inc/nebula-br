@@ -28,7 +28,9 @@ func AddFlags(flags *pflag.FlagSet) {
     for local - "local:///the/local/path/to/backup"
     for s3  - "s3://example/url/to/the/backup"
     `)
-	cobra.MarkFlagRequired(flags, flagStorage)
+	if err := cobra.MarkFlagRequired(flags, flagStorage); err != nil {
+		log.Errorf("failed to mark flag %s required: %v", flagStorage, err)
+	}
 	AddS3Flags(flags)
 	AddLocalFlags(flags)
 }
@@ -56,7 +58,9 @@ func ParseFromFlags(flags *pflag.FlagSet) (*pb.Backend, error) {
 	b := &pb.Backend{}
 	switch t {
 	case pb.LocalType:
-		b.SetUri(s)
+		if err := b.SetUri(s); err != nil {
+			return nil, err
+		}
 	case pb.S3Type:
 		region, err := flags.GetString(flagS3Region)
 		if err != nil {
@@ -74,7 +78,9 @@ func ParseFromFlags(flags *pflag.FlagSet) (*pb.Backend, error) {
 		if err != nil {
 			return nil, err
 		}
-		b.SetUri(s)
+		if err := b.SetUri(s); err != nil {
+			return nil, err
+		}
 		b.GetS3().Region = region
 		b.GetS3().Endpoint = endpoint
 		b.GetS3().AccessKey = accessKey

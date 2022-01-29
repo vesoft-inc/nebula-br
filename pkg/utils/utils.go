@@ -31,7 +31,11 @@ func DumpMetaToFile(meta *meta.BackupMeta, filename string) error {
 		return fmt.Errorf("write backup meta to %s failed: %w", filename, err)
 	}
 
-	binaryOut.Flush()
+	err = binaryOut.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush binary out: %w", err)
+	}
+
 	return nil
 }
 

@@ -5,12 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/log"
 	"github.com/vesoft-inc/nebula-br/pkg/show"
 )
-
-var backendUrl string
 
 func NewShowCmd() *cobra.Command {
 	showCmd := &cobra.Command{
@@ -34,12 +33,7 @@ func NewShowCmd() *cobra.Command {
 				return err
 			}
 
-			err = s.Show()
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return s.Show()
 		},
 	}
 	config.AddCommonFlags(showCmd.PersistentFlags())
