@@ -1,31 +1,36 @@
 # Overview
-Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph spaces of [Nebula](https://github.com/vesoft-inc/nebula) and to restore data from the backup files.
+
+Backup and Restore (BR) is a CommandLine Interface Tool to back up data of graph spaces of [Nebula](https://github.com/vesoft-inc/nebula) and restore data from the backup files.
 
 # Features
+
 - Full backup or restore in one-click operation
 - Supported multiple backend types for storing the backup files:
   - Local Disk
-  - S3-Compatiable Storage(such as Alibaba Cloud OSS, Amazon S3, MinIO, Ceph RGW, and so on).
+  - S3-Compatible Storage(such as Alibaba Cloud OSS, Amazon S3, MinIO, Ceph RGW, and so on).
 - Supports backing up data of entire Nebula Graph cluster or specified spaces of it（_EXPERIMENTAL_), but now it has some limitations:
   - when restore use this, all other spaces will be erased!
 
 # Limitation
-- Incremental backup not supported for now
-- Nebula Listeners is not backuped for now
+
+- Incremental backup is not supported for now
+- Nebula Listeners is not backed up for now
 - Restore operation is performed OFFLINE
 - During backup process, DDL and DML operation would be blocked
-- For backup to local disk, backup files would be placed at each services(e.g. storage or meta)'s local path. A recommended practice is to mount a NFS Filesystem at that path so that one can restore the backup files to a difference host. For detail, please reference to the [Implementation](#Implementation) part.
+- For backup to local disk, backup files would be placed at each service(e.g. storage or meta)'s local path. A recommended practice is to mount a NFS Filesystem at that path so that one can restore the backup files to a difference host. For details, please reference to the [Implementation](#Implementation) part.
 - Restoring a backup of specified spaces is only allowed to perform INPLACE, which means that if one backup a specified space from Cluster-A, this backup cannot be restored to another cluster(Let's say Cluster-B). Restoring an entire backup wouldn't have this limitation
-- Target cluster to restore must have the same topologies with the cluster where the backup comes from
+- The target cluster to restore must have the same topologies with the cluster where the backup comes from
 
 # Prerequisites
 
 ## Nebula Agent
-Nebula cluster to backup/restore should start the [agent](https://github.com/vesoft-inc/nebula-agent) service in each cluster(including metad, storaged, graphd) host. Notice that, if you have multi-services in the same host, you need only start one agent. That is to say,  you need exactly one agent in each cluster host no matter how many services in it.
+
+Nebula cluster to back up/restore should start the [agent](https://github.com/vesoft-inc/nebula-agent) service in each cluster(including metad, storaged, graphd) host. Notice that, if you have multi-services in the same host, you need only start one agent. That is to say,  you need exactly one agent in each cluster host no matter how many services in it.
 In the future, the nebula-agent will be started automatically, but now, you should start it yourself in your cluster machines one by one. You could download it from nebula-agent repo and start it as the guidance in that repo. 
 
 
 # Quick Start
+
 - Clone the tool repo: 
 ```
 git clone https://github.com/vesoft-inc/nebula-br.git
@@ -149,7 +154,7 @@ bin/br version
 
   For example, the command below will conduct a restore operation, which restore to the cluster whose meta service address is `127.0.0.1:9559`, from local disk in path `/home/nebula/backup/BACKUP_2021_12_08_18_38_08` or s3 URL `s3://127.0.0.1:9000/br-test/backupu/BACKUP_2021_12_08_18_38_08`
 
-  Note that by local disk backend, it will restore the backup files from the local path of the target cluster. If target cluster's host has changed, it may encounter an error because of missing files. A recommend practice is to mount a common NFS to prevent that. 
+  Note that by local disk backend, it will restore the backup files from the local path of the target cluster. If target cluster's host has changed, it may encounter an error because of missing files. A recommended practice is to mount a common NFS to prevent that. 
 
   ```bash
   # for local
@@ -160,7 +165,7 @@ bin/br version
 
   Note: if your new cluster hosts' ip are not all the same with the backup cluster, after restore, you should add the hosts needed in the new cluster one by one.
 
-  - Clean up temporary files if any error occured during backup. It will clean the files in cluster and external storage. You could also use it to clean up old backups files in external storage.
+  - Clean up temporary files if any error occurred during backup. It will clean the files in cluster and external storage. You could also use it to clean up old backups files in external storage.
   ```
   Usage:
     br cleanup [flags]
@@ -195,14 +200,16 @@ bin/br version
 # Implementation<a name="Implementation"></a>
 
 ## Backup
- BR CLI would send an RPC request to leader of the meta services of Nebula Graph to backup the cluster. Before the backup is created, the meta service will block any writes to the cluster, including DDL and DML statements. The blocking operation is involved with the raft layer of cluster. After that, meta service send an RPC request to all storage service to create snapshot. Metadata of the cluster stored in meta services will be backup as well. Those backup files includes:
+
+ BR CLI would send an RPC request to leader of the meta services of Nebula Graph to back up the cluster. Before the backup is created, the meta service will block any writes to the cluster, including DDL and DML statements. The blocking operation is involved with the raft layer of cluster. After that, meta service send an RPC request to all storage service to create snapshot. Metadata of the cluster stored in meta services will be backup as well. Those backup files includes:
  - The backup files of storage service are snapshots of wal for raft layer and snapshots of lower-level storage engine, rocksdb's checkpoint for example. 
- - The backup files of meta service are a list of SSTables exported by scanning some particular metadatas.
- After backup files generated, a metafile which describing this backup would be generated. Along with the backup files, BR CLI would upload those files and the meta file into user specified backends. Note that for local disk backend, backup files would be copied to each local path of services defined by `--storage`, the meta file would be copied into a local path of the host where BR CLI running at. That is to say, when restore, the BR CLI must run in the same host which it runs when backup.
+ - The backup files of meta service are a list of SSTables exported by scanning some particular metadata. 
+ After backup files generated, a metafile which describing this backup would be generated. Along with the backup files, BR CLI would upload those files and the meta file into user specified backends. Note that for local disk backend, backup files would be copied to each local path of services defined by `--storage`, the meta file would be copied into a local path of the host where BR CLI running at. That is to say, when restoring, the BR CLI must run in the same host which it runs when backup.
  
 ## Restore
- BR CLI would first check the topologies of the target cluster and the backup. If not match the requirements, the restore operation would be abort.
- Before restore, BR CLI would stop the meta and storage service remotely. If the backup contain entire cluster, the original data of target cluster would be backup to a temporary path end up with `_old_<timestamp>` before restoring, in case of any error ocurred.
+
+ BR CLI would first check the topologies of the target cluster and the backup. If not match the requirements, the restore operation would be aborted.
+ Before restore, BR CLI would stop the meta and storage service remotely. If the backup contain entire cluster, the original data of target cluster would be backup to a temporary path end up with `_old_<timestamp>` before restoring, in case of any error occurred.
  When restoring, BR CLI would try to repick hosts for each space from target cluster and download the backup files from the specified backend to the target hosts.
  - For restoring meta service's data, BR CLI would bulkload the SSTables into meta services at first. Then update cluster metadata based on repicked hosts.
  - For restoring storage service's data, BR CLI would download the snapshots and restart storage service.
