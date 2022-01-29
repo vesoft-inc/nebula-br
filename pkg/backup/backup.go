@@ -11,11 +11,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
+	"github.com/vesoft-inc/nebula-go/v2/nebula"
+	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 )
 
 type Backup struct {
@@ -143,7 +144,7 @@ func (b *Backup) generateMetaFile(meta *meta.BackupMeta) (string, error) {
 	return tmpMetaPath, utils.DumpMetaToFile(meta, tmpMetaPath)
 }
 
-// Backup backup data in given external storage, and return the backup name
+// Backup backs up data in given external storage, and return the backup name
 func (b *Backup) Backup() (string, error) {
 	// step2: call the meta service, create backup files in each local
 	backupRes, err := b.meta.CreateBackup(b.cfg.Spaces)
@@ -170,7 +171,10 @@ func (b *Backup) Backup() (string, error) {
 	logger.WithField("root", rootUri).Info("Ensure backup root dir")
 
 	// step4: upload meta files
-	metaDir, _ := utils.UriJoin(rootUri, "meta")
+	metaDir, err := utils.UriJoin(rootUri, "meta")
+	if err != nil {
+		return backupName, err
+	}
 	if len(backupInfo.GetMetaFiles()) == 0 {
 		return backupName, fmt.Errorf("there is no meta files in backup info")
 	}
@@ -218,7 +222,10 @@ func (b *Backup) Backup() (string, error) {
 		return backupName, fmt.Errorf("write meta to tmp path failed: %w", err)
 	}
 	logger.WithField("tmp path", tmpMetaPath).Info("Write meta data to local tmp file successfully")
-	backupMetaPath, _ := utils.UriJoin(rootUri, filepath.Base(tmpMetaPath))
+	backupMetaPath, err := utils.UriJoin(rootUri, filepath.Base(tmpMetaPath))
+	if err != nil {
+		return backupName, err
+	}
 	err = b.sto.Upload(b.ctx, backupMetaPath, tmpMetaPath, false)
 	if err != nil {
 		return backupName, fmt.Errorf("upload local tmp file to remote storage %s failed: %w", backupMetaPath, err)

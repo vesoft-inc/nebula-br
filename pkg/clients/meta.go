@@ -5,9 +5,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/vesoft-inc/nebula-br/pkg/utils"
 	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
+	"github.com/vesoft-inc/nebula-br/pkg/utils"
 )
 
 type NebulaMeta struct {
@@ -42,7 +43,6 @@ func (m *NebulaMeta) reconnect(addr *nebula.HostAddr) error {
 	}
 	m.client.Close()
 
-	var err error
 	c, err := connect(addr)
 	if err != nil {
 		return fmt.Errorf("connect to new meta client leader %s failed: %w",
@@ -92,11 +92,10 @@ func (m *NebulaMeta) ListCluster() (*meta.ListClusterInfoResp, error) {
 
 func (m *NebulaMeta) CreateBackup(spaces []string) (*meta.CreateBackupResp, error) {
 	req := meta.NewCreateBackupReq()
-	if spaces != nil || len(spaces) != 0 {
-		req.Spaces = make([][]byte, 0, len(spaces))
-		for _, space := range spaces {
-			req.Spaces = append(req.Spaces, []byte(space))
-		}
+
+	req.Spaces = make([][]byte, 0, len(spaces))
+	for _, space := range spaces {
+		req.Spaces = append(req.Spaces, []byte(space))
 	}
 
 	for {

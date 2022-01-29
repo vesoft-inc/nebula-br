@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
+
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
-
-	log "github.com/sirupsen/logrus"
-	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 )
 
 type Cleanup struct {
@@ -87,8 +87,8 @@ func (c *Cleanup) cleanExternal() error {
 					utils.StringifyAddr(addr), err)
 			}
 
-			// This is an hack, generally, we could not get local path
-			// from uri by triming directly
+			// This is a hack, generally, we could not get local path
+			// from uri by trimming directly
 			backupPath := strings.TrimPrefix(backupUri, "local://")
 			removeReq := &pb.RemoveDirRequest{
 				Path: backupPath,

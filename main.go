@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+
 	"github.com/vesoft-inc/nebula-br/cmd"
 )
 
@@ -11,5 +12,7 @@ func main() {
 		Short: "Nebula br is a Nebula backup and restore tool",
 	}
 	rootCmd.AddCommand(cmd.NewBackupCmd(), cmd.NewVersionCmd(), cmd.NewRestoreCmd(), cmd.NewCleanupCmd(), cmd.NewShowCmd())
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		panic(err)
+	}
 }

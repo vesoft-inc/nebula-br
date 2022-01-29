@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/log"
 	"github.com/vesoft-inc/nebula-br/pkg/restore"
@@ -47,7 +48,7 @@ func newFullRestoreCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Println("restore successed")
+			fmt.Println("restore succeed")
 			return nil
 		},
 	}

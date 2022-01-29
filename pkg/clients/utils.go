@@ -6,13 +6,14 @@ import (
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	log "github.com/sirupsen/logrus"
-	"github.com/vesoft-inc/nebula-br/pkg/utils"
 	"github.com/vesoft-inc/nebula-go/v2/nebula"
 	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
+	"github.com/vesoft-inc/nebula-br/pkg/utils"
 )
 
 const (
-	defaultTimeout time.Duration = 120 * time.Second
+	defaultTimeout = 120 * time.Second
 )
 
 func connect(metaAddr *nebula.HostAddr) (*meta.MetaServiceClient, error) {

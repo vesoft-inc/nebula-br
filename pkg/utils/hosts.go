@@ -20,7 +20,7 @@ type HostDir struct {
 }
 
 func (h *NebulaHosts) String() string {
-	if h.hosts == nil {
+	if len(h.hosts) == 0 {
 		return "nil"
 	}
 
@@ -52,7 +52,7 @@ func (h *NebulaHosts) LoadFrom(resp *meta.ListClusterInfoResp) error {
 }
 
 func (h *NebulaHosts) StorageCount() int {
-	if h.hosts == nil {
+	if len(h.hosts) == 0 {
 		return 0
 	}
 
@@ -68,7 +68,7 @@ func (h *NebulaHosts) StorageCount() int {
 	return c
 }
 
-// StorageParts count storage services group by data path count
+// StoragePaths count storage services group by data path count
 // path count -> services count having same paths count
 func (h *NebulaHosts) StoragePaths() map[int]int {
 	distribute := make(map[int]int)
