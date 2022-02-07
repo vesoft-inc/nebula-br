@@ -30,36 +30,56 @@ func NewFixFrom(r *Restore) (*Fix, error) {
 		r:          r,
 		hosts:      r.hosts,
 		agentMgr:   r.agentMgr,
-		backSuffix: GetBackupSuffix(),
+		backSuffix: r.backSuffix,
 	}, nil
 }
 
 // Move back the data dir in restore process
 func (f *Fix) fixData() error {
-	for _, s := range f.hosts.GetStorages() {
+	services := f.hosts.GetStorages()
+	services = append(services, f.hosts.GetMetas()...)
+
+	for _, s := range services {
+		name := fmt.Sprintf("%s[%s]", s.GetRole().String(), utils.StringifyAddr(s.GetAddr()))
+		logger := log.WithField("name", name)
+
 		agent, err := f.agentMgr.GetAgentFor(s.GetAddr())
 		if err != nil {
-			return fmt.Errorf("get agent for storaged %s failed: %w",
-				utils.StringifyAddr(s.GetAddr()), err)
+			return fmt.Errorf("get agent for %s failed: %w", name, err)
 		}
 
-		logger := log.WithField("addr", utils.StringifyAddr(s.GetAddr()))
+		if s.GetRole() == meta.HostRole_META && len(s.Dir.Data) != 1 {
+			return fmt.Errorf("meta service: %s should only have one data dir, but %d",
+				name, len(s.Dir.Data))
+		}
+
 		for _, d := range s.Dir.Data {
 			opath := filepath.Join(string(d), "nebula")
 			bpath := fmt.Sprintf("%s%s", opath, f.backSuffix)
 
+			// check if the old data exist
 			existReq := &pb.ExistDirRequest{
 				Path: bpath,
 			}
 			res, err := agent.ExistDir(existReq)
 			if err != nil {
-				return fmt.Errorf("check %s exist failed: %w", opath, err)
+				return fmt.Errorf("check %s:%s exist failed: %w", name, opath, err)
 			}
 			if !res.Exist {
 				logger.WithField("path", bpath).Debug("Origin backup storage data path does not exist, skip it")
 				continue
 			}
 
+			// remove the newly downloaded data
+			rmReq := &pb.RemoveDirRequest{
+				Path: opath,
+			}
+			_, err = agent.RemoveDir(rmReq)
+			if err != nil {
+				return fmt.Errorf("remove new origin dir %s failed: %w", opath, err)
+			}
+
+			// move the old data back
 			req := &pb.MoveDirRequest{
 				SrcPath: bpath,
 				DstPath: opath,
@@ -71,50 +91,8 @@ func (f *Fix) fixData() error {
 
 			logger.WithField("origin path", opath).
 				WithField("backup path", bpath).
-				Info("Moveback origin storage data path successfully")
+				Infof("Moveback origin %s data path successfully", s.GetRole().String())
 		}
-	}
-
-	for _, m := range f.hosts.GetMetas() {
-		agent, err := f.agentMgr.GetAgentFor(m.GetAddr())
-		if err != nil {
-			return fmt.Errorf("get agent for metad %s failed: %w",
-				utils.StringifyAddr(m.GetAddr()), err)
-		}
-
-		if len(m.Dir.Data) != 1 {
-			return fmt.Errorf("meta service: %s should only have one data dir, but %d",
-				utils.StringifyAddr(m.GetAddr()), len(m.Dir.Data))
-		}
-
-		opath := fmt.Sprintf("%s/nebula", string(m.Dir.Data[0]))
-		bpath := fmt.Sprintf("%s%s", opath, f.backSuffix)
-
-		existReq := &pb.ExistDirRequest{
-			Path: bpath,
-		}
-		res, err := agent.ExistDir(existReq)
-		if err != nil {
-			return fmt.Errorf("check %s exist failed: %w", opath, err)
-		}
-		if !res.Exist {
-			log.WithField("path", bpath).Debug("Origin backup meta data path does not exist, skip it")
-			return nil
-		}
-
-		req := &pb.MoveDirRequest{
-			SrcPath: bpath,
-			DstPath: opath,
-		}
-		_, err = agent.MoveDir(req)
-		if err != nil {
-			return fmt.Errorf("move dir back from %s to %s failed: %w", opath, bpath, err)
-		}
-
-		log.WithField("addr", utils.StringifyAddr(m.GetAddr())).
-			WithField("origin path", opath).
-			WithField("backup path", bpath).
-			Info("Moveback origin meta data path successfully")
 	}
 
 	return nil
@@ -244,7 +222,6 @@ func (f *Fix) Fix() error {
 		if err != nil {
 			return fmt.Errorf("get services failed:  %w", err)
 		}
-		log.Infof("There are %d dead service left", len(ds))
 		err = f.startDead(ds)
 		if err != nil {
 			return fmt.Errorf("start dead services failed: %w", err)
