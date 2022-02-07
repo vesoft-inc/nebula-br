@@ -351,7 +351,7 @@ func (r *Restore) stopCluster() error {
 			}
 
 			req := &pb.StopServiceRequest{
-				Role: pb.ServiceRole(s.GetRole()),
+				Role: utils.ToRole(s.GetRole()),
 				Dir:  string(s.GetDir().GetRoot()),
 			}
 

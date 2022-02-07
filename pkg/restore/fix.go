@@ -126,6 +126,7 @@ func (f *Fix) getDead() ([]*meta.ServiceInfo, error) {
 	for host, services := range f.hosts.GetHostServices() {
 		logger := log.WithField("host", host)
 
+		// get and check agent
 		var agentAddr *nebula.HostAddr
 		for _, s := range services {
 			if s.GetRole() == meta.HostRole_AGENT {
@@ -142,23 +143,25 @@ func (f *Fix) getDead() ([]*meta.ServiceInfo, error) {
 			return deadServices, fmt.Errorf("get agent %s failed: %w", utils.StringifyAddr(agentAddr), err)
 		}
 
+		// collect all dead services
 		for _, s := range services {
 			if s.GetRole() == meta.HostRole_AGENT {
 				continue
 			}
 
 			req := &pb.ServiceStatusRequest{
-				Role: pb.ServiceRole(s.GetRole()),
+				Role: utils.ToRole(s.GetRole()),
 				Dir:  string(s.GetDir().GetRoot()),
 			}
 
-			logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Info("Get service's status")
 			resp, err := agent.ServiceStatus(req)
 			if err != nil {
 				return deadServices, fmt.Errorf("get service status in host %s failed: %w", agentAddr.Host, err)
 			}
 
 			if resp.Status != pb.Status_RUNNING {
+				logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Debugf("%s:%s is dead",
+					s.Role.String(), utils.StringifyAddr(s.Addr))
 				deadServices = append(deadServices, s)
 			}
 		}
@@ -176,7 +179,7 @@ func (f *Fix) startDead(deadServices []*meta.ServiceInfo) error {
 		}
 
 		req := &pb.StartServiceRequest{
-			Role: pb.ServiceRole_STORAGE,
+			Role: utils.ToRole(ds.GetRole()),
 			Dir:  string(ds.GetDir().GetRoot()),
 		}
 		_, err = agent.StartService(req)
