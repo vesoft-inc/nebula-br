@@ -10,7 +10,7 @@ import (
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
 
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 func DumpMetaToFile(meta *meta.BackupMeta, filename string) error {

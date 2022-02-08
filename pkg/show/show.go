@@ -13,9 +13,8 @@ import (
 	_ "github.com/facebook/fbthrift/thrift/lib/go/thrift"
 	"github.com/olekukonko/tablewriter"
 	log "github.com/sirupsen/logrus"
-	"github.com/vesoft-inc/nebula-agent/pkg/storage"
-	_ "github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 
+	"github.com/vesoft-inc/nebula-agent/pkg/storage"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
 )
@@ -73,7 +72,7 @@ func NewShow(ctx context.Context, cfg *config.ShowConfig) (*Show, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list dir failed: %w", err)
 	}
-	log.WithField("prefix", cfg.Backend.Uri()).WithField("backup names", dirNames).Debug("List backups")
+	log.WithField("prefix", cfg.Backend.Uri()).WithField("backup names", dirNames).Debug("List backups.")
 
 	return &Show{
 		ctx:         ctx,
@@ -89,7 +88,7 @@ func (s *Show) downloadMetaFiles() (map[string]string, error) {
 		bname = strings.Trim(bname, "/") // the s3 list result may have slashes
 
 		if !utils.IsBackupName(bname) {
-			log.Infof("%s is not backup name", bname)
+			log.Infof("%s is not backup name.", bname)
 			continue
 		}
 
@@ -99,7 +98,7 @@ func (s *Show) downloadMetaFiles() (map[string]string, error) {
 
 		err := s.sto.Download(s.ctx, localTmpPath, externalUri, false)
 		if err != nil {
-			log.WithError(err).Infof("download %s to %s failed", externalUri, localTmpPath)
+			log.WithError(err).Infof("Download %s to %s failed.", externalUri, localTmpPath)
 		} else {
 			log.WithField("external", externalUri).WithField("local", localTmpPath).Debug("Download backup meta file successfully.")
 		}
@@ -113,16 +112,16 @@ func (s *Show) downloadMetaFiles() (map[string]string, error) {
 func (s *Show) parseMetaFiles(metaPaths map[string]string) ([]*backupInfo, error) {
 	var infoList []*backupInfo
 	for name, path := range metaPaths {
-		log.WithField("meta path", path).Debug("Start parse meta file")
+		log.WithField("meta path", path).Debug("Start parse meta file.")
 		m, err := utils.ParseMetaFromFile(path)
 		if err != nil || m == nil {
-			log.WithError(err).WithField("meta path", path).Error("parse meta file failed")
+			log.WithError(err).WithField("meta path", path).Error("Parse meta file failed.")
 			infoList = append(infoList, &backupInfo{BackupName: name})
 			continue
 		}
 
 		if name != string(m.BackupName) {
-			log.Errorf("Name from path: %s and name parsed from meta: %s are not consistent", name, string(m.BackupName))
+			log.Errorf("Name from path: %s and name parsed from meta: %s are not consistent.", name, string(m.BackupName))
 		}
 
 		spaces := make([]string, 0)
@@ -167,7 +166,7 @@ func (s *Show) Show() error {
 	}
 	defer func() {
 		if err := utils.RemoveDir(utils.LocalTmpDir); err != nil {
-			log.WithError(err).Errorf("Remove tmp dir %s failed", utils.LocalTmpDir)
+			log.WithError(err).Errorf("Remove tmp dir %s failed.", utils.LocalTmpDir)
 		}
 	}()
 

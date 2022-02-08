@@ -9,10 +9,11 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
@@ -123,7 +124,7 @@ func (b *Backup) uploadStorage(hostDirs map[string]map[string][]string, targetUr
 				if err != nil {
 					return fmt.Errorf("upload %s to %s failed:%w", source, target, err)
 				}
-				logger.WithField("src", source).WithField("target", target).Info("Upload storage checkpoint successfully")
+				logger.WithField("src", source).WithField("target", target).Info("Upload storage checkpoint successfully.")
 			}
 		}
 	}
@@ -157,7 +158,7 @@ func (b *Backup) Backup() (string, error) {
 	backupInfo := backupRes.GetMeta()
 	backupName := string(backupInfo.GetBackupName())
 	logger := log.WithField("name", backupName)
-	logger.WithField("backup info", utils.StringifyBackup(backupInfo)).Info("Create backup in nebula machine's local")
+	logger.WithField("backup info", utils.StringifyBackup(backupInfo)).Info("Create backup in nebula machine's local.")
 
 	// ensure root dir
 	rootUri, err := utils.UriJoin(b.cfg.Backend.Uri(), string(backupInfo.BackupName))
@@ -168,7 +169,7 @@ func (b *Backup) Backup() (string, error) {
 	if err != nil {
 		return backupName, fmt.Errorf("ensure dir %s failed: %w", rootUri, err)
 	}
-	logger.WithField("root", rootUri).Info("Ensure backup root dir")
+	logger.WithField("root", rootUri).Info("Ensure backup root dir.")
 
 	// upload meta files
 	metaDir, err := utils.UriJoin(rootUri, "meta")
@@ -182,7 +183,7 @@ func (b *Backup) Backup() (string, error) {
 	if err = b.uploadMeta(b.meta.LeaderAddr(), metaDir, localMetaDir); err != nil {
 		return backupName, err
 	}
-	logger.WithField("meta", metaDir).Info("Upload meta successfully")
+	logger.WithField("meta", metaDir).Info("Upload meta successfully.")
 
 	// upload storage files
 	storageDir, _ := utils.UriJoin(rootUri, "data")
@@ -203,9 +204,9 @@ func (b *Backup) Backup() (string, error) {
 	}
 	err = b.uploadStorage(hostDirs, storageDir)
 	if err != nil {
-		return backupName, fmt.Errorf("upload stoarge failed %w", err)
+		return backupName, fmt.Errorf("upload storage failed %w", err)
 	}
-	logger.WithField("data", storageDir).Info("Upload data backup successfully")
+	logger.WithField("data", storageDir).Info("Upload data backup successfully.")
 
 	// generate backup meta files and upload
 	if err := utils.EnsureDir(utils.LocalTmpDir); err != nil {
@@ -213,7 +214,7 @@ func (b *Backup) Backup() (string, error) {
 	}
 	defer func() {
 		if err := utils.RemoveDir(utils.LocalTmpDir); err != nil {
-			log.WithError(err).Errorf("Remove tmp dir %s failed", utils.LocalTmpDir)
+			log.WithError(err).Errorf("Remove tmp dir %s failed.", utils.LocalTmpDir)
 		}
 	}()
 
@@ -221,7 +222,7 @@ func (b *Backup) Backup() (string, error) {
 	if err != nil {
 		return backupName, fmt.Errorf("write meta to tmp path failed: %w", err)
 	}
-	logger.WithField("tmp path", tmpMetaPath).Info("Write meta data to local tmp file successfully")
+	logger.WithField("tmp path", tmpMetaPath).Info("Write meta data to local tmp file successfully.")
 	backupMetaPath, err := utils.UriJoin(rootUri, filepath.Base(tmpMetaPath))
 	if err != nil {
 		return backupName, err
@@ -230,7 +231,7 @@ func (b *Backup) Backup() (string, error) {
 	if err != nil {
 		return backupName, fmt.Errorf("upload local tmp file to remote storage %s failed: %w", backupMetaPath, err)
 	}
-	logger.WithField("remote path", backupMetaPath).Info("Upload tmp backup meta file to remote")
+	logger.WithField("remote path", backupMetaPath).Info("Upload tmp backup meta file to remote.")
 
 	// drop backup files in cluster machine local and local tmp files
 	err = b.meta.DropBackup(backupInfo.GetBackupName())
@@ -238,7 +239,7 @@ func (b *Backup) Backup() (string, error) {
 		return backupName, fmt.Errorf("drop backup %s in cluster local failed: %w",
 			string(backupInfo.BackupName[:]), err)
 	}
-	logger.Info("Drop backup in cluster and local tmp folder successfully")
+	logger.Info("Drop backup in cluster and local tmp folder successfully.")
 
 	return backupName, nil
 }

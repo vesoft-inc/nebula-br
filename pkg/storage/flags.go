@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 )
 
@@ -29,7 +30,7 @@ func AddFlags(flags *pflag.FlagSet) {
     for s3  - "s3://example/url/to/the/backup"
     `)
 	if err := cobra.MarkFlagRequired(flags, flagStorage); err != nil {
-		log.Errorf("failed to mark flag %s required: %v", flagStorage, err)
+		log.Errorf("Failed to mark flag %s required: %v.", flagStorage, err)
 	}
 	AddS3Flags(flags)
 	AddLocalFlags(flags)
@@ -89,6 +90,6 @@ func ParseFromFlags(flags *pflag.FlagSet) (*pb.Backend, error) {
 		return nil, fmt.Errorf("bad format backend: %d", t)
 	}
 
-	log.WithField("type", t).WithField("uri", s).Debugln("Parse storage flag")
+	log.WithField("type", t).WithField("uri", s).Debugln("Parse storage flag.")
 	return b, nil
 }

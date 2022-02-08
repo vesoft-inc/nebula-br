@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 // NebulaHosts group all services(storaged/metad/graphd/listener) and agents by hostname or ip
@@ -63,7 +64,7 @@ func (h *NebulaHosts) LoadFrom(resp *meta.ListClusterInfoResp) error {
 		}
 	}
 
-	log.WithField("host info", h.String()).Info("Get cluster topology from the nebula")
+	log.WithField("host info", h.String()).Info("Get cluster topology from the nebula.")
 	return nil
 }
 
@@ -114,7 +115,7 @@ func (h *NebulaHosts) HasService(addr *nebula.HostAddr) bool {
 		if s.Addr.GetHost() != addr.GetHost() {
 			log.WithField("should", addr.GetHost()).
 				WithField("but", s.Addr.GetHost()).
-				Infof("Wrong address %s in hosts map", StringifyAddr(s.Addr))
+				Infof("Wrong address %s in hosts map.", StringifyAddr(s.Addr))
 			continue
 		}
 

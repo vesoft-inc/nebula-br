@@ -6,11 +6,12 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 type Fix struct {
@@ -23,7 +24,7 @@ type Fix struct {
 
 func NewFixFrom(r *Restore) (*Fix, error) {
 	if r.hosts == nil || r.agentMgr == nil {
-		return nil, fmt.Errorf("emtpy hosts or agents manager")
+		return nil, fmt.Errorf("empty hosts or agents manager")
 	}
 
 	return &Fix{
@@ -138,7 +139,7 @@ func (f *Fix) getDead() ([]*meta.ServiceInfo, error) {
 			}
 
 			if resp.Status != pb.Status_RUNNING {
-				logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Debugf("%s:%s is dead",
+				logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Debugf("%s:%s is dead.",
 					s.Role.String(), utils.StringifyAddr(s.Addr))
 				deadServices = append(deadServices, s)
 			}
@@ -165,7 +166,7 @@ func (f *Fix) startDead(deadServices []*meta.ServiceInfo) error {
 			return fmt.Errorf("start %s by agent failed: %w", name, err)
 		}
 		log.WithField("addr", utils.StringifyAddr(ds.GetAddr())).
-			Infof("Start %s by agent successfully", name)
+			Infof("Start %s by agent successfully.", name)
 	}
 	return nil
 }
@@ -177,7 +178,7 @@ func retry(action func() error, aname string, times int) (err error) {
 			return
 		}
 
-		log.WithError(err).Infof("%s failed, try times=%d", aname, try)
+		log.WithError(err).Infof("%s failed, try times=%d.", aname, try)
 		time.Sleep(time.Second * time.Duration(try))
 	}
 
@@ -199,7 +200,7 @@ func (f *Fix) Fix() error {
 	}
 	err := retry(checkAlive, "Get dead services", tryTimes)
 	if allAlive {
-		log.Info("All services are OK")
+		log.Info("All services are OK.")
 		return nil
 	}
 	if err != nil {

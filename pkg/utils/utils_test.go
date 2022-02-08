@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 func TestDumpParseBackup(t *testing.T) {

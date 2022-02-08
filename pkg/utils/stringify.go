@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 func StringifyAddr(addr *nebula.HostAddr) string {
@@ -25,7 +25,7 @@ func ParseAddr(addrStr string) (*nebula.HostAddr, error) {
 
 	port, err := strconv.ParseInt(ipAddr[1], 10, 32)
 	if err != nil {
-		return nil, fmt.Errorf("bad fomrat: %s", addrStr)
+		return nil, fmt.Errorf("bad format: %s", addrStr)
 	}
 
 	return &nebula.HostAddr{Host: ipAddr[0], Port: nebula.Port(port)}, nil

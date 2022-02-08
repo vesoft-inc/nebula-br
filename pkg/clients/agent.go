@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	agent "github.com/vesoft-inc/nebula-agent/pkg/client"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
 )
 
 type NebulaAgent struct {

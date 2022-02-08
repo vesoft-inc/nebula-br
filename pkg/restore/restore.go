@@ -10,14 +10,14 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
-
 	"github.com/vesoft-inc/nebula-br/pkg/clients"
 	"github.com/vesoft-inc/nebula-br/pkg/config"
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 func GetBackupSuffix() string {
@@ -92,7 +92,7 @@ func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.Space
 
 	clusterPaths := r.hosts.StoragePaths()
 	if !reflect.DeepEqual(backupPaths, clusterPaths) {
-		log.WithField("backup", backupPaths).WithField("cluster", clusterPaths).Error("Path distribution is not consistent")
+		log.WithField("backup", backupPaths).WithField("cluster", clusterPaths).Error("Path distribution is not consistent.")
 		return fmt.Errorf("the physical topology is not consistent, path distribution is not consistent")
 	}
 
@@ -111,7 +111,7 @@ func (r *Restore) checkAndDropSpaces(info map[nebula.GraphSpaceID]*meta.SpaceBac
 		}
 		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
 			if resp.Item.SpaceID != sid {
-				return fmt.Errorf("space to resotre already exist and the space id is not consistent, name: %s, backup: %d, cluster: %d",
+				return fmt.Errorf("space to restore already exist and the space id is not consistent, name: %s, backup: %d, cluster: %d",
 					string(backup.Space.SpaceName), sid, resp.Item.SpaceID)
 			}
 		} else {
@@ -155,7 +155,7 @@ func (r *Restore) backupOriginal(allspaces bool) error {
 
 			logger.WithField("origin path", opath).
 				WithField("backup path", bpath).
-				Info("Backup origin storage data path successfully")
+				Info("Backup origin storage data path successfully.")
 		}
 	}
 
@@ -187,7 +187,7 @@ func (r *Restore) backupOriginal(allspaces bool) error {
 			log.WithField("addr", utils.StringifyAddr(m.GetAddr())).
 				WithField("origin path", opath).
 				WithField("backup path", bpath).
-				Info("Backup origin meta data path successfully")
+				Info("Backup origin meta data path successfully.")
 		}
 
 	}
@@ -291,7 +291,7 @@ func (r *Restore) downloadStorage(backup *meta.BackupMeta) (map[string]string, e
 					externalUri, localDir, utils.StringifyAddr(s.GetAddr()), err)
 			}
 			logger.WithField("external", externalUri).
-				WithField("local", localDir).Info("Download storage data successfully")
+				WithField("local", localDir).Info("Download storage data successfully.")
 		}
 
 		serviceMap[utils.StringifyAddr(prevList[idx])] = utils.StringifyAddr(s.GetAddr())
@@ -319,7 +319,7 @@ func (r *Restore) startMetaService() error {
 				utils.StringifyAddr(meta.GetAddr()), err)
 		}
 		log.WithField("addr", utils.StringifyAddr(meta.GetAddr())).
-			Info("Start meta service successfully")
+			Info("Start meta service successfully.")
 	}
 
 	return nil
@@ -355,7 +355,7 @@ func (r *Restore) stopCluster() error {
 				Dir:  string(s.GetDir().GetRoot()),
 			}
 
-			logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Info("Stop services")
+			logger.WithField("dir", req.Dir).WithField("role", s.GetRole().String()).Info("Stop services.")
 			_, err := agent.StopService(req)
 			if err != nil {
 				return fmt.Errorf("stop services in host %s failed: %w", agentAddr.Host, err)
@@ -396,7 +396,7 @@ func (r *Restore) restoreMeta(backup *meta.BackupMeta, storageMap map[string]str
 		}
 
 		log.WithField("addr", utils.StringifyAddr(meta.GetAddr())).
-			Info("restore backup in this metad successfully")
+			Info("Restore backup in this metad successfully.")
 	}
 
 	return nil
@@ -419,7 +419,7 @@ func (r *Restore) startStorageService() error {
 			return fmt.Errorf("start storaged by agent failed: %w", err)
 		}
 		log.WithField("addr", utils.StringifyAddr(s.GetAddr())).
-			Info("Start storaged by agent successfully")
+			Info("Start storaged by agent successfully.")
 	}
 
 	return nil
@@ -442,7 +442,7 @@ func (r *Restore) startGraphService() error {
 			return fmt.Errorf("start graphd by agent failed: %w", err)
 		}
 		log.WithField("addr", utils.StringifyAddr(s.GetAddr())).
-			Info("Start graphd by agent successfully")
+			Info("Start graphd by agent successfully.")
 	}
 
 	return nil
@@ -506,7 +506,7 @@ func (r *Restore) Restore() error {
 	if !exist {
 		return fmt.Errorf("backup dir %s does not exist", rootUri)
 	}
-	logger.WithField("uri", rootUri).Info("Check backup dir successfully")
+	logger.WithField("uri", rootUri).Info("Check backup dir successfully.")
 
 	// download and parse backup meta file
 	if err := utils.EnsureDir(utils.LocalTmpDir); err != nil {
@@ -514,7 +514,7 @@ func (r *Restore) Restore() error {
 	}
 	defer func() {
 		if err := utils.RemoveDir(utils.LocalTmpDir); err != nil {
-			log.WithError(err).Errorf("Remove tmp dir %s failed", utils.LocalTmpDir)
+			log.WithError(err).Errorf("Remove tmp dir %s failed.", utils.LocalTmpDir)
 		}
 	}()
 
@@ -536,13 +536,13 @@ func (r *Restore) Restore() error {
 		return fmt.Errorf("physical topology not consistent: %w", err)
 	}
 
-	// if only resotre some spaces, check and remove these spaces
+	// if only restore some spaces, check and remove these spaces
 	if !bakMeta.AllSpaces {
 		err = r.checkAndDropSpaces(bakMeta.SpaceBackups)
 		if err != nil {
 			return fmt.Errorf("check and drop space failed: %w", err)
 		}
-		log.Info("Check and drop spaces successfully")
+		log.Info("Check and drop spaces successfully.")
 	}
 
 	// stop cluster
@@ -550,14 +550,14 @@ func (r *Restore) Restore() error {
 	if err != nil {
 		return fmt.Errorf("stop cluster failed: %w", err)
 	}
-	logger.Info("Stop cluster successfully")
+	logger.Info("Stop cluster successfully.")
 
 	// backup original data
 	err = r.backupOriginal(bakMeta.AllSpaces)
 	if err != nil {
 		return fmt.Errorf("backup origin data path failed: %w", err)
 	}
-	logger.Info("Backup origin cluster data successfully")
+	logger.Info("Backup origin cluster data successfully.")
 
 	// download backup data from external storage to cluster
 	err = r.downloadMeta()
@@ -595,13 +595,13 @@ func (r *Restore) Restore() error {
 	if err != nil {
 		return fmt.Errorf("start graph service failed: %w", err)
 	}
-	log.Info("Start storage and graph services successfully")
+	log.Info("Start storage and graph services successfully.")
 
 	// after success restore, cleanup the backup data if needed
 	err = r.cleanupOriginalData()
 	if err != nil {
 		return fmt.Errorf("clean up origin data failed: %w", err)
 	}
-	log.Info("Cleanup origin data successfully")
+	log.Info("Cleanup origin data successfully.")
 	return nil
 }

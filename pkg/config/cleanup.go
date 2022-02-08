@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-br/pkg/storage"
 )
 
