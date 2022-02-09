@@ -5,8 +5,9 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 // NebulaHosts group all services(storaged/metad/graphd/listener) and agents by hostname or ip
@@ -47,7 +48,23 @@ func (h *NebulaHosts) LoadFrom(resp *meta.ListClusterInfoResp) error {
 	}
 
 	h.hosts = resp.GetHostServices()
-	log.WithField("host info", h.String()).Info("Get cluster topology from the nebula")
+
+	// check only one agent in each host
+	for _, services := range h.hosts {
+		var agentAddr *nebula.HostAddr
+		for _, s := range services {
+			if s.GetRole() == meta.HostRole_AGENT {
+				if agentAddr == nil {
+					agentAddr = s.GetAddr()
+				} else {
+					return fmt.Errorf("there are more than one agent in host %s: %s, %s", s.GetAddr().GetHost(),
+						StringifyAddr(agentAddr), StringifyAddr(s.GetAddr()))
+				}
+			}
+		}
+	}
+
+	log.WithField("host info", h.String()).Info("Get cluster topology from the nebula.")
 	return nil
 }
 
@@ -98,7 +115,7 @@ func (h *NebulaHosts) HasService(addr *nebula.HostAddr) bool {
 		if s.Addr.GetHost() != addr.GetHost() {
 			log.WithField("should", addr.GetHost()).
 				WithField("but", s.Addr.GetHost()).
-				Infof("Wrong address %s in hosts map", StringifyAddr(s.Addr))
+				Infof("Wrong address %s in hosts map.", StringifyAddr(s.Addr))
 			continue
 		}
 

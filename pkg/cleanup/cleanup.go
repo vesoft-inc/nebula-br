@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
 	"github.com/vesoft-inc/nebula-agent/pkg/storage"
 
@@ -60,7 +61,7 @@ func (c *Cleanup) cleanNebula() error {
 	if err != nil {
 		return fmt.Errorf("drop backup failed: %w", err)
 	}
-	log.Debugf("Drop backup %s successfully", c.cfg.BackupName)
+	log.Debugf("Drop backup %s successfully.", c.cfg.BackupName)
 
 	return nil
 }
@@ -75,7 +76,7 @@ func (c *Cleanup) cleanExternal() error {
 	if err != nil {
 		return fmt.Errorf("remove %s in external storage failed: %w", backupUri, err)
 	}
-	log.Debugf("Remove %s successfullly", backupUri)
+	log.Debugf("Remove %s successfully.", backupUri)
 
 	// Local backend's data lay in different cluster machines,
 	// which should be handled separately
@@ -97,7 +98,7 @@ func (c *Cleanup) cleanExternal() error {
 			if err != nil {
 				return fmt.Errorf("remove %s in host: %s failed: %w", backupPath, addr.Host, err)
 			}
-			log.Debugf("Remove local data %s in %s successfullly", backupPath, addr.Host)
+			log.Debugf("Remove local data %s in %s successfully.", backupPath, addr.Host)
 		}
 	}
 
@@ -107,18 +108,18 @@ func (c *Cleanup) cleanExternal() error {
 func (c *Cleanup) Clean() error {
 	logger := log.WithField("backup name", c.cfg.BackupName)
 
-	logger.Info("Start to cleanup data in nebula cluster")
+	logger.Info("Start to cleanup data in nebula cluster.")
 	err := c.cleanNebula()
 	if err != nil {
 		return fmt.Errorf("clean nebula local data failed: %w", err)
 	}
 
-	logger.Info("Start cleanup data in external storage")
+	logger.Info("Start cleanup data in external storage.")
 	err = c.cleanExternal()
 	if err != nil {
 		return fmt.Errorf("clean external storage data failed: %w", err)
 	}
 
-	logger.Info("Clean up backup data successfully")
+	logger.Info("Clean up backup data successfully.")
 	return nil
 }

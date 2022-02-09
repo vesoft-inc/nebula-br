@@ -14,7 +14,7 @@ import (
 func NewRestoreCmd() *cobra.Command {
 	restoreCmd := &cobra.Command{
 		Use:          "restore",
-		Short:        "restore Nebula Graph Database, notice that it will restart the cluster",
+		Short:        "Restore Nebula Graph Database, notice that it will restart the cluster",
 		SilenceUsage: true,
 	}
 	config.AddCommonFlags(restoreCmd.PersistentFlags())
@@ -46,9 +46,19 @@ func newFullRestoreCmd() *cobra.Command {
 
 			err = r.Restore()
 			if err != nil {
+				f, ferr := restore.NewFixFrom(r)
+				if ferr != nil {
+					return err
+				}
+
+				ferr = f.Fix()
+				if ferr != nil {
+					fmt.Println("Fix failed when restore failed", ferr)
+				}
+
 				return err
 			}
-			fmt.Println("restore succeed")
+			fmt.Println("Restore succeed.")
 			return nil
 		},
 	}

@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/facebook/fbthrift/thrift/lib/go/thrift"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
+
+	pb "github.com/vesoft-inc/nebula-agent/pkg/proto"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 func DumpMetaToFile(meta *meta.BackupMeta, filename string) error {
@@ -102,4 +104,17 @@ func UriJoin(elem ...string) (string, error) {
 	elem[0] = u.Path
 	u.Path = path.Join(elem...)
 	return u.String(), nil
+}
+
+func ToRole(r meta.HostRole) pb.ServiceRole {
+	switch r {
+	case meta.HostRole_STORAGE:
+		return pb.ServiceRole_STORAGE
+	case meta.HostRole_GRAPH:
+		return pb.ServiceRole_GRAPH
+	case meta.HostRole_META:
+		return pb.ServiceRole_META
+	default:
+		return pb.ServiceRole_UNKNOWN_ROLE
+	}
 }

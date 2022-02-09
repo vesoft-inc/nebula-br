@@ -28,7 +28,7 @@ func NewBackupCmd() *cobra.Command {
 func newFullBackupCmd() *cobra.Command {
 	fullBackupCmd := &cobra.Command{
 		Use:   "full",
-		Short: "full backup Nebula Graph Database",
+		Short: "Full backup Nebula Graph Database",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := log.SetLog(cmd.Flags())
 			if err != nil {
@@ -46,10 +46,10 @@ func newFullBackupCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Println("start to backup cluster...")
+			fmt.Println("Start to backup cluster...")
 			backupName, err := b.Backup()
 			if err != nil {
-				fmt.Println("backup failed, will try to clean the remaining garbage...")
+				fmt.Println("Backup failed, will try to clean the remaining garbage...")
 
 				if backupName != "" {
 					cleanCfg := &config.CleanupConfig{
@@ -66,12 +66,12 @@ func newFullBackupCmd() *cobra.Command {
 					if err != nil {
 						return fmt.Errorf("cleanup %s failed when backup failed: %w", backupName, err)
 					}
-					fmt.Printf("cleanup backup %s successfully after backup failed", backupName)
+					fmt.Printf("Cleanup backup %s successfully after backup failed.", backupName)
 				}
 				return err
 			}
 
-			fmt.Println("backup succeed.")
+			fmt.Println("Backup succeed.")
 			return nil
 		},
 	}

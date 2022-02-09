@@ -11,7 +11,7 @@ import (
 func NewVersionCmd() *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
-		Short: "print the version of nebula br tool",
+		Short: "Print the version of nebula br tool",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Printf(`%s,V-%d.%d.%d
    GitSha: %s

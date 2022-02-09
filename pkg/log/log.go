@@ -33,7 +33,7 @@ func SetLog(flags *pflag.FlagSet) error {
 
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		logrus.WithError(err).WithField("file", path).Error("Create log path failed")
+		logrus.WithError(err).WithField("file", path).Error("Create log path failed.")
 		return err
 	}
 

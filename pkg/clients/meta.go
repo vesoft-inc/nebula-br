@@ -5,10 +5,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/vesoft-inc/nebula-go/v2/nebula"
-	"github.com/vesoft-inc/nebula-go/v2/nebula/meta"
 
 	"github.com/vesoft-inc/nebula-br/pkg/utils"
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
+	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
 type NebulaMeta struct {
@@ -205,14 +205,14 @@ func (m *NebulaMeta) RestoreMeta(metaAddr *nebula.HostAddr, hostMap []*meta.Host
 		client, err := connect(metaAddr)
 		if err != nil {
 			log.WithError(err).WithField("addr", utils.StringifyAddr(metaAddr)).
-				Errorf("connect to metad failed, try times %d", try)
+				Errorf("Connect to metad failed, try times %d.", try)
 			time.Sleep(time.Second * 2)
 			continue
 		}
 
 		resp, err := client.RestoreMeta(req)
 		if err != nil {
-			log.WithError(err).WithField("req", req).Error("Restore meta failed")
+			log.WithError(err).WithField("req", req).Error("Restore meta failed.")
 			return err
 		}
 
@@ -227,7 +227,7 @@ func (m *NebulaMeta) RestoreMeta(metaAddr *nebula.HostAddr, hostMap []*meta.Host
 }
 
 func (m *NebulaMeta) getMetaDirInfo(addr *nebula.HostAddr) (*nebula.DirInfo, error) {
-	log.WithField("addr", utils.StringifyAddr(addr)).Debug("Try to get dir info from meta service")
+	log.WithField("addr", utils.StringifyAddr(addr)).Debug("Try to get dir info from meta service.")
 	c, err := connect(addr)
 	if err != nil {
 		return nil, err
