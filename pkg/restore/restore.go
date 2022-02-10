@@ -70,11 +70,9 @@ func NewRestore(ctx context.Context, cfg *config.RestoreConfig) (*Restore, error
 	}, nil
 }
 
-func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
-	var (
-		backupPaths    = make(map[int]int)
-		backupStorages = make(map[string]bool)
-	)
+func (r *Restore) getBackupTopology(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) (backupPaths map[int]int, backupStorages map[string]bool) {
+	backupPaths = make(map[int]int)
+	backupStorages = make(map[string]bool)
 
 	for _, space := range info {
 		for _, host := range space.GetHostBackups() {
@@ -85,6 +83,12 @@ func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.Space
 			backupStorages[utils.StringifyAddr(host.GetHost())] = true
 		}
 	}
+	return
+}
+
+func (r *Restore) checkPhysicalTopology(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
+	backupPaths, backupStorages := r.getBackupTopology(info)
+
 	if r.hosts.StorageCount() != len(backupStorages) {
 		return fmt.Errorf("the physical topology of storage count must be consistent, cluster: %d, backup: %d",
 			r.hosts.StorageCount(), len(backupStorages))
@@ -603,5 +607,52 @@ func (r *Restore) Restore() error {
 		return fmt.Errorf("clean up origin data failed: %w", err)
 	}
 	log.Info("Cleanup origin data successfully.")
+
+	// add hosts if the hosts are different.
+	err = r.maintainHosts(bakMeta.GetSpaceBackups())
+	if err != nil {
+		return fmt.Errorf("maintain hosts failed: %w", err)
+	}
+	log.Info("Maintain hosts successfully.")
 	return nil
+}
+
+func (r *Restore) maintainHosts(info map[nebula.GraphSpaceID]*meta.SpaceBackupInfo) error {
+	_, backupStorages := r.getBackupTopology(info)
+	storages := make(map[string]bool)
+	for _, s := range r.hosts.GetStorages() {
+		storages[utils.StringifyAddr(s.Addr)] = true
+	}
+
+	dropHosts := make([]*nebula.HostAddr, 0)
+	addHosts := make([]*nebula.HostAddr, 0)
+
+	for s := range backupStorages {
+		// remove the hosts if they are not in original storages
+		if _, ok := storages[s]; !ok {
+			log.Debugf("drop host is %s", s)
+			addr, err := utils.ParseAddr(s)
+			if err != nil {
+				return err
+			}
+			dropHosts = append(dropHosts, addr)
+		}
+	}
+	for s := range storages {
+		// add the hosts if they are not in backup storages
+		if _, ok := backupStorages[s]; !ok {
+			log.Debugf("add host is %s", s)
+			addr, err := utils.ParseAddr(s)
+			if err != nil {
+				return err
+			}
+			addHosts = append(addHosts, addr)
+		}
+	}
+
+	if len(addHosts) == 0 {
+		return nil
+	}
+
+	return r.meta.MaintainHosts(addHosts, dropHosts)
 }

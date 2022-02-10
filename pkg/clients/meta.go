@@ -252,3 +252,53 @@ func (m *NebulaMeta) getMetaDirInfo(addr *nebula.HostAddr) (*nebula.DirInfo, err
 
 	return resp.GetDir(), nil
 }
+
+func (m *NebulaMeta) MaintainHosts(addHosts []*nebula.HostAddr, dropHosts []*nebula.HostAddr) error {
+	addReq := &meta.AddHostsReq{}
+	addReq.Hosts = addHosts
+	// not clear why raise EOF error if do not reconnect.
+	m.reconnect(m.leaderAddr)
+
+	err := m.funcWithRetry(func() (*meta.ExecResp, error) {
+		return m.client.AddHosts(addReq)
+	})
+
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	dropReq := &meta.DropHostsReq{}
+	dropReq.Hosts = dropHosts
+
+	err = m.funcWithRetry(func() (*meta.ExecResp, error) {
+		return m.client.DropHosts(dropReq)
+	})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func (m *NebulaMeta) funcWithRetry(fn func() (*meta.ExecResp, error)) error {
+	var (
+		err  error
+		resp *meta.ExecResp
+	)
+
+	for i := 0; i < 3; i++ {
+		resp, err = fn()
+		if err != nil {
+			return err
+		}
+		if resp.GetCode() == nebula.ErrorCode_SUCCEEDED {
+			return nil
+		}
+		if resp.GetCode() != nebula.ErrorCode_E_LEADER_CHANGED {
+			return fmt.Errorf("%v", resp.GetCode())
+		}
+		m.reconnect(resp.GetLeader())
+	}
+	return fmt.Errorf("still failed after 3 times, the last error code is %v", resp.GetCode())
+}
