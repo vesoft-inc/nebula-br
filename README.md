@@ -191,7 +191,7 @@ bin/br version
   For example:
   ```bash
   # for local
-  br cleanup --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="local:///home/nebula/backup/" --name BACKUP_2021_12_08_18_38_08
+  br cleanup --meta "127.0.0.1:9559" --storage="local:///home/nebula/backup/" --name BACKUP_2021_12_08_18_38_08
 
   # for s3
   br cleanup --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin --name=BACKUP_2021_12_08_18_38_08
