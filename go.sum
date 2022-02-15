@@ -223,10 +223,10 @@ github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5Cc
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/vesoft-inc/nebula-agent v0.1.1-0.20220208095610-fe80654911f8 h1:UY7ygJyfzpYWIsdLpLJTf1yjh3FhW8xRYBNQg1OL77o=
-github.com/vesoft-inc/nebula-agent v0.1.1-0.20220208095610-fe80654911f8/go.mod h1:uA6GJsvhNdTZkLQp1grX74fUm6TWi7EWA2AEWNeHzNU=
-github.com/vesoft-inc/nebula-go/v3 v3.0.0-20220119024722-ab348afbb79d h1:spO7OAtYI1wiqBiJ9417pKhqx0IkqFAFdFQFPm4JIrs=
-github.com/vesoft-inc/nebula-go/v3 v3.0.0-20220119024722-ab348afbb79d/go.mod h1:+sXv05jYQBARdTbTcIEsWVXCnF/6ttOlDK35xQ6m54s=
+github.com/vesoft-inc/nebula-agent v0.1.1 h1:HGrKJV02uLQydgBTn8/eVdyxkY3cLGC1B5ra/xet52Y=
+github.com/vesoft-inc/nebula-agent v0.1.1/go.mod h1:JovCbyojVT665zWtlsss9SL9cVX969XKkZKO3NhrcMQ=
+github.com/vesoft-inc/nebula-go/v3 v3.0.0 h1:ii5T3vps4xAQZkzPvGn6NuiUWlH/rm1zdIS5VTEA71A=
+github.com/vesoft-inc/nebula-go/v3 v3.0.0/go.mod h1:+sXv05jYQBARdTbTcIEsWVXCnF/6ttOlDK35xQ6m54s=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
