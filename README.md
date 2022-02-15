@@ -73,6 +73,7 @@ bin/br version
         --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
         --s3.region string       S3 Option: set region or location to upload or download backup
         --s3.secret_key string   S3 Option: set secret key for access id
+        --debug                  Output log in debug level or not
   ```
 
   For example, the command below will conduct a full backup operation of entire cluster whose meta service's address is `127.0.0.1:9559`, upload the backup files to local `/home/nebula/backup`  or S3 URL `s3://127.0.0.1:9000/br-test/backup`.
@@ -103,6 +104,7 @@ bin/br version
                                      example:
                                      for local - "local:///the/local/path/to/backup"
                                      for s3  - "s3://example/url/to/the/backup" 
+        --debug                  Output log in debug level or not
   ```
 
   For example, the command below will list the information of existing backups in local path `/home/nebula/backup` or  S3 URL `s3://127.0.0.1:9000/br-test/backup`
@@ -150,6 +152,7 @@ bin/br version
         --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
         --s3.region string       S3 Option: set region or location to upload or download backup
         --s3.secret_key string   S3 Option: set secret key for access id
+        --debug                  Output log in debug level or not
   ```
 
   For example, the command below will conduct a restore operation, which restore to the cluster whose meta service address is `127.0.0.1:9559`, from local disk in path `/home/nebula/backup/BACKUP_2021_12_08_18_38_08` or s3 URL `s3://127.0.0.1:9000/br-test/backupu/BACKUP_2021_12_08_18_38_08`
@@ -186,12 +189,13 @@ bin/br version
         --s3.endpoint string     S3 Option: set the S3 endpoint URL, please specify the http or https scheme explicitly
         --s3.region string       S3 Option: set region or location to upload or download backup
         --s3.secret_key string   S3 Option: set secret key for access id
+        --debug                  Output log in debug level or not
   ```
 
   For example:
   ```bash
   # for local
-  br cleanup --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="local:///home/nebula/backup/" --name BACKUP_2021_12_08_18_38_08
+  br cleanup --meta "127.0.0.1:9559" --storage="local:///home/nebula/backup/" --name BACKUP_2021_12_08_18_38_08
 
   # for s3
   br cleanup --meta "127.0.0.1:9559" --s3.endpoint "http://127.0.0.1:9000" --storage="s3://br-test/backup/" --s3.access_key=minioadmin --s3.secret_key=minioadmin --name=BACKUP_2021_12_08_18_38_08
