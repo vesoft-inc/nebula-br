@@ -14,7 +14,7 @@ LDFLAGS += -X $(REPO)/pkg/version.GitSha=$(GITSHA)
 LDFLAGS += -X $(REPO)/pkg/version.GitRef=$(GITREF)
 
 build:
-	$(GO) build -ldflags '$(LDFLAGS)' -o $(BUILDTARGET) main.go
+	$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o $(BUILDTARGET) main.go
 	chmod +x $(BUILDTARGET)
 
 test:
