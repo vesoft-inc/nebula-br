@@ -3,6 +3,9 @@ package log
 import (
 	"io"
 	"os"
+	"path"
+	"runtime"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -14,6 +17,12 @@ func SetLog(flags *pflag.FlagSet) error {
 	logrus.SetReportCaller(true)
 	logrus.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: "2006-01-02T15:04:05.000Z",
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			s := strings.Split(f.Function, ".")
+			funcname := s[len(s)-1]
+			_, filename := path.Split(f.File)
+			return funcname, filename
+		},
 	})
 
 	debug, err := flags.GetBool(config.FlagLogDebug)
