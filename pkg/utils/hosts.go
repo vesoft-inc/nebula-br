@@ -47,7 +47,16 @@ func (h *NebulaHosts) LoadFrom(resp *meta.ListClusterInfoResp) error {
 		return fmt.Errorf("response is not successful, code is %s", resp.GetCode().String())
 	}
 
-	h.hosts = resp.GetHostServices()
+	// only load metad、garphd、storaged、agent role
+	h.hosts = make(map[string][]*meta.ServiceInfo)
+	for host, services := range resp.GetHostServices() {
+		for _, s := range services {
+			switch s.GetRole() {
+			case meta.HostRole_GRAPH, meta.HostRole_META, meta.HostRole_STORAGE, meta.HostRole_AGENT:
+				h.hosts[host] = append(h.hosts[host], s)
+			}
+		}
+	}
 
 	// check only one agent in each host
 	for _, services := range h.hosts {
