@@ -1,6 +1,7 @@
 package main
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/vesoft-inc/nebula-br/cmd"
@@ -13,6 +14,6 @@ func main() {
 	}
 	rootCmd.AddCommand(cmd.NewBackupCmd(), cmd.NewVersionCmd(), cmd.NewRestoreCmd(), cmd.NewCleanupCmd(), cmd.NewShowCmd())
 	if err := rootCmd.Execute(); err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 }

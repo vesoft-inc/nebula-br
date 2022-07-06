@@ -11,7 +11,6 @@ import (
 )
 
 func SetLog(flags *pflag.FlagSet) error {
-	logrus.SetReportCaller(true)
 	logrus.SetFormatter(&logrus.JSONFormatter{
 		TimestampFormat: "2006-01-02T15:04:05.000Z",
 	})
@@ -25,6 +24,8 @@ func SetLog(flags *pflag.FlagSet) error {
 	} else {
 		logrus.SetLevel(logrus.InfoLevel)
 	}
+
+	logrus.SetReportCaller(debug)
 
 	path, err := flags.GetString(config.FlagLogPath)
 	if err != nil {
