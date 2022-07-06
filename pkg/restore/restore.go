@@ -272,6 +272,9 @@ func (r *Restore) downloadStorage(backup *meta.BackupMeta) (map[string]string, e
 		for i, d := range s.Dir.Data {
 			// {backupRoot}/{backupName}/data/{addr}/data{0..n}/
 			externalUri, _ := utils.UriJoin(storageUri, utils.StringifyAddr(prevList[idx]), fmt.Sprintf("data%d", i))
+			// avoid agent.DownloadFile prefix bugs
+			externalUri += "/"
+
 			backend, err := r.sto.GetDir(r.ctx, externalUri)
 			if err != nil {
 				return nil, fmt.Errorf("get storage backend for %s failed: %w", externalUri, err)
