@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/vesoft-inc/nebula-go/v3/nebula"
 	"github.com/vesoft-inc/nebula-go/v3/nebula/meta"
 )
 
@@ -20,12 +21,14 @@ func TestDumpParseBackup(t *testing.T) {
 		[]byte("__tags__.sst"),
 	}
 	backup := &meta.BackupMeta{
-		SpaceBackups: make(map[int32]*meta.SpaceBackupInfo),
-		MetaFiles:    files,
-		BackupName:   []byte("backup_test"),
-		Full:         true,
-		AllSpaces:    true,
-		CreateTime:   time.Now().Unix(),
+		SpaceBackups:   make(map[int32]*meta.SpaceBackupInfo),
+		MetaFiles:      files,
+		BackupName:     []byte("backup_test"),
+		Full:           true,
+		AllSpaces:      true,
+		CreateTime:     time.Now().Unix(),
+		BaseBackupName: []byte("base_backup_test"),
+		StorageHosts:   make([]*nebula.HostAddr, 0),
 	}
 
 	err := EnsureDir(LocalTmpDir)
