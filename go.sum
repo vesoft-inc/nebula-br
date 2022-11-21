@@ -225,8 +225,9 @@ github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/vesoft-inc/nebula-agent v0.1.1 h1:HGrKJV02uLQydgBTn8/eVdyxkY3cLGC1B5ra/xet52Y=
 github.com/vesoft-inc/nebula-agent v0.1.1/go.mod h1:JovCbyojVT665zWtlsss9SL9cVX969XKkZKO3NhrcMQ=
-github.com/vesoft-inc/nebula-go/v3 v3.0.0 h1:ii5T3vps4xAQZkzPvGn6NuiUWlH/rm1zdIS5VTEA71A=
 github.com/vesoft-inc/nebula-go/v3 v3.0.0/go.mod h1:+sXv05jYQBARdTbTcIEsWVXCnF/6ttOlDK35xQ6m54s=
+github.com/vesoft-inc/nebula-go/v3 v3.3.1 h1:5DxUxswEQvK9gkK6Y/X4fhX+bmIeHIJrn+b2q7tE3HM=
+github.com/vesoft-inc/nebula-go/v3 v3.3.1/go.mod h1:+sXv05jYQBARdTbTcIEsWVXCnF/6ttOlDK35xQ6m54s=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
