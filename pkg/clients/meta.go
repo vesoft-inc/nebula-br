@@ -119,7 +119,8 @@ func (m *NebulaMeta) CreateBackup(spaces []string) (*meta.CreateBackupResp, erro
 
 func (m *NebulaMeta) DropBackup(name []byte) error {
 	req := meta.NewDropSnapshotReq()
-	req.Name = name
+	// for nebulaGraph 3.3.0 compatibility
+	req.Names = [][]byte{name}
 
 	for {
 		resp, err := m.client.DropSnapshot(req)

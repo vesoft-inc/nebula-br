@@ -198,7 +198,7 @@ func (b *Backup) Backup() (string, error) {
 					hostDirs[hostStr] = make(map[string][]string)
 				}
 
-				hostDirs[hostStr][idStr] = append(hostDirs[hostStr][idStr], string(cp.GetPath()))
+				hostDirs[hostStr][idStr] = append(hostDirs[hostStr][idStr], string(cp.GetDataPath()))
 			}
 		}
 	}
