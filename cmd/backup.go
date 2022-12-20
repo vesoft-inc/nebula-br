@@ -49,7 +49,7 @@ func newFullBackupCmd() *cobra.Command {
 			fmt.Println("Start to backup cluster...")
 			backupName, err := b.Backup()
 			if err != nil {
-				fmt.Println("Backup failed, will try to clean the remaining garbage...")
+				fmt.Printf("Backup failed: %v, will try to clean the remaining garbage...\n", err)
 
 				if backupName != "" {
 					cleanCfg := &config.CleanupConfig{
