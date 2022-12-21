@@ -494,8 +494,8 @@ func (r *Restore) cleanupOriginalData() error {
 
 // backup_root/backup_name
 //   - meta
-//      - xxx.sst
-//      - ...
+//   - xxx.sst
+//   - ...
 //   - data
 //   - backup_name.meta
 func (r *Restore) Restore() error {
@@ -579,7 +579,7 @@ func (r *Restore) Restore() error {
 	if err != nil {
 		return fmt.Errorf("start meta service failed: %w", err)
 	}
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 10)
 	log.Info("Start meta service successfully.")
 
 	// restore meta service by map

@@ -202,12 +202,17 @@ func (m *NebulaMeta) RestoreMeta(metaAddr *nebula.HostAddr, hostMap []*meta.Host
 	req.Hosts = hostMap
 	req.Files = byteFiles
 
-	for try := 1; try <= 3; try++ {
+	// meta startup time may be very long, so add retry for up to 10 times
+	for try := 1; try <= 10; try++ {
 		client, err := connect(metaAddr)
 		if err != nil {
+			numsec := 1 << try
+			if numsec > 32 {
+				numsec = 32
+			}
 			log.WithError(err).WithField("addr", utils.StringifyAddr(metaAddr)).
-				Errorf("Connect to metad failed, try times %d.", try)
-			time.Sleep(time.Second * 2)
+				Errorf("Connect to metad failed, will try after %d seconds, try times %d.", numsec, try)
+			time.Sleep(time.Second * time.Duration(numsec))
 			continue
 		}
 
