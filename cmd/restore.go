@@ -48,7 +48,7 @@ func newFullRestoreCmd() *cobra.Command {
 			if err != nil {
 				f, ferr := restore.NewFixFrom(r)
 				if ferr != nil {
-					return err
+					return fmt.Printf("New FixFrom failed: %v", err)
 				}
 
 				ferr = f.Fix()
