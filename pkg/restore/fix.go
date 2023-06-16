@@ -94,6 +94,21 @@ func (f *Fix) fixData() error {
 				WithField("backup path", bpath).
 				Infof("Moveback origin %s data path successfully", s.GetRole().String())
 		}
+
+		// move the old cluster.id back
+		if s.GetRole() == meta.HostRole_STORAGE {
+			opath := filepath.Join(string(s.GetDir().GetRoot()), "cluster.id")
+			bpath := fmt.Sprintf("%s%s", opath, f.backSuffix)
+
+			req := &pb.MoveDirRequest{
+				SrcPath: bpath,
+				DstPath: opath,
+			}
+			_, err = agent.MoveDir(req)
+			if err != nil && !utils.IsNotExist(err) {
+				return fmt.Errorf("move cluster.id back from %s to %s failed: %w", bpath, opath, err)
+			}
+		}
 	}
 
 	return nil

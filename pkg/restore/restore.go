@@ -157,6 +157,22 @@ func (r *Restore) backupOriginal(allspaces bool) error {
 				WithField("backup path", bpath).
 				Info("Backup origin storage data path successfully.")
 		}
+
+		// move cluster.id
+		opath := filepath.Join(string(s.Dir.GetRoot()), "cluster.id")
+		bpath := fmt.Sprintf("%s%s", opath, r.backSuffix)
+		req := &pb.MoveDirRequest{
+			SrcPath: opath,
+			DstPath: bpath,
+		}
+		_, err = agent.MoveDir(req)
+		if err != nil && !utils.IsNotExist(err) {
+			return fmt.Errorf("move dir from %s to %s failed: %w", opath, bpath, err)
+		}
+		logger.WithField("origin path", opath).
+			WithField("backup path", bpath).
+			WithField("origin not exist", utils.IsNotExist(err)).
+			Info("Backup origin cluster.id path successfully.")
 	}
 
 	if allspaces {
@@ -488,6 +504,16 @@ func (r *Restore) cleanupOriginalData() error {
 			}
 			logger.WithField("path", req.Path).Info("Remove storage origin data successfully.")
 		}
+
+		// remove backup cluster.id
+		req := &pb.RemoveDirRequest{
+			Path: fmt.Sprintf("%s%s", filepath.Join(string(s.Dir.GetRoot()), "cluster.id"), r.backSuffix),
+		}
+		_, err = agent.RemoveDir(req)
+		if err != nil {
+			return fmt.Errorf("remove storage cluster.id %s by agent failed: %w", req.Path, err)
+		}
+		logger.WithField("path", req.Path).Info("Remove storage cluster.id successfully.")
 	}
 	return nil
 }
