@@ -118,3 +118,10 @@ func ToRole(r meta.HostRole) pb.ServiceRole {
 		return pb.ServiceRole_UNKNOWN_ROLE
 	}
 }
+
+func IsNotExist(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "not exist")
+}
