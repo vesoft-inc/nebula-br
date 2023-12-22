@@ -111,7 +111,7 @@ func (c *Cleanup) Clean() error {
 	logger.Info("Start to cleanup data in nebula cluster.")
 	err := c.cleanNebula()
 	if err != nil {
-		return fmt.Errorf("clean nebula local data failed: %w", err)
+		log.Errorf("clean nebula local data failed: %v", err)
 	}
 
 	logger.Info("Start cleanup data in external storage.")
